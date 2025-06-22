@@ -1,39 +1,52 @@
-#include <iostream>
+#pragma once
+
+#include "helpers.h"
+
 #include "light_ik/light_ik.h"
-#include <godot_cpp/classes/sprite2d.hpp>
+#include "joint_constraints.h"
+
+#include <godot_cpp/classes/skeleton_modifier3d.hpp>
+#include <godot_cpp/classes/resource.hpp>
+#include <godot_cpp/variant/node_path.hpp>
 
 namespace godot
 {
 
-class LightIKPlugin : public Sprite2D
+class LightIKPlugin : public SkeletonModifier3D
 {
-    GDCLASS(LightIKPlugin, Sprite2D)
+    GDCLASS(LightIKPlugin, SkeletonModifier3D)
 
-private:
-    double  m_timePassed = 0.0;
-    Vector2 m_rotationCenter{0., 0.};
-    double  m_radius = 10.;
-    bool    m_animate = true;
+    DEFINE_PROPERTY(double, simulate);
+    DEFINE_PROPERTY(String, root_bone);
+    DEFINE_PROPERTY(String, tip_bone);
+    DEFINE_PROPERTY(NodePath, target);
+    DEFINE_PROPERTY(TypedArray<JointConstraints>, constraints_array);
 
-protected:
-    static void _bind_methods();
-
-    void set_center(Vector2 center) {m_rotationCenter = center;}
-    Vector2 get_center() const {return m_rotationCenter; }
-
-    void set_radius(double radius) {m_radius = radius;}
-    double get_radius() const {return m_radius; }
-
-    void set_animate(double animate) {m_animate = animate;}
-    double get_animate() const {return m_animate; }
 public:
     LightIKPlugin();
     ~LightIKPlugin();
 
     void _ready() override;
     void _process(double delta) override;
+    void _validate_property(godot::PropertyInfo& info);
+    //void _process_modification() override;
 
+protected:
+    static void _bind_methods();
 
+private:
+    void ConstructConstraints();
+
+    String                  m_rootBoneName;
+    int32_t                 m_rootBone = -1;
+
+    String                  m_tipBoneName;
+    int32_t                 m_tipBone = -1;
+
+    NodePath                m_targetPath;    
+    TypedArray<JointConstraints> m_constraintsArray;
+
+    bool                    m_simulate = true;
 };
 
 }
