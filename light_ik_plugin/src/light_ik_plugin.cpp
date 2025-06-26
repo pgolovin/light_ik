@@ -11,8 +11,6 @@ namespace godot
 {
 void LightIKPlugin::_bind_methods()
 {
-    UtilityFunctions::print("Binding methods");
-
     ADD_GROUP("IK Settings", "skeleton_");
 
     DECLARE_PROPERTY(LightIKPlugin, root_bone, (Variant::STRING), skeleton);
@@ -48,7 +46,7 @@ void LightIKPlugin::set_root_bone(const String& root_bone_name)
     if (get_skeleton())
     {
         m_rootBone = get_skeleton()->find_bone(root_bone_name);
-        ConstructConstraints();
+        MakeConstraints();
     }
 }
 String LightIKPlugin::get_root_bone() const 
@@ -62,7 +60,7 @@ void LightIKPlugin::set_tip_bone(const String& tip_bone_name)
     if (get_skeleton())
     {
         m_tipBone = get_skeleton()->find_bone(tip_bone_name);
-        ConstructConstraints();
+        MakeConstraints();
     }
 }
 String LightIKPlugin::get_tip_bone() const 
@@ -112,7 +110,6 @@ void LightIKPlugin::_ready()
         assert (get_skeleton());
         m_tipBone = get_skeleton()->find_bone(m_tipBoneName);
     }
-    // no need to update the constraints array here, it will be loaded from the file
 }
 
 void LightIKPlugin::_process(double delta)
@@ -124,88 +121,95 @@ void LightIKPlugin::_validate_property(godot::PropertyInfo& info)
 {
     if (info.name == String("skeleton_root_bone"))
     {
-        info.hint = PROPERTY_HINT_ENUM;
-        if (get_skeleton())
-        {
-            if (-1 == m_tipBone)
-            {
-                info.hint_string = get_skeleton()->get_concatenated_bone_names();
-            }
-            else 
-            {
-                // list all parent bones from current tip to skeleton root
-                int32_t bone = m_tipBone;
-                bool found = false;
-                while (bone >= 0)
-                {
-                    info.hint_string = get_skeleton()->get_bone_name(bone) + "," + info.hint_string;
-                    if (bone == m_rootBone)
-                    {
-                        found = true;
-                    }
-                    bone = get_skeleton()->get_bone_parent(bone);
-                }
-                if (!found)
-                {
-                    m_rootBoneName = "";
-                    m_rootBone = -1;
-                }
-            }
-        }
+        ValidateRootBone(info);
     }
     else if(info.name == String("skeleton_tip_bone"))
     {
-        info.hint = PROPERTY_HINT_ENUM;
-        if (get_skeleton())
-        {
-            if (-1 == m_rootBone)
-            {
-                // if root is not selected allow to chose any bone
-                info.hint_string = get_skeleton()->get_concatenated_bone_names();
-            }
-            else
-            {
-                std::vector<int32_t> childBones;
-                std::stack<int32_t> boneStack;
-                // allow to chose any child bone from the selected root
-                info.hint_string = "";
-                boneStack.emplace(m_rootBone);
-                childBones.emplace_back(m_rootBone);
-                // create  the list of all child bones from current
-                while (!boneStack.empty())
-                {
-                    int32_t rootBone = boneStack.top();
-                    boneStack.pop();
-                    const auto& bones = get_skeleton()->get_bone_children(rootBone);
-                    for (int32_t bone : bones)
-                    {
-                        boneStack.emplace(bone);
-                        childBones.emplace_back(bone);
-                    }
-                }
-                // concatenate names of child bones into the single list
-                bool found = false;
-                for (int32_t bone : childBones)
-                {
-                    info.hint_string += get_skeleton()->get_bone_name(bone) + ",";
-                    if (bone == m_tipBone)
-                    {
-                        found = true;
-                    }
-                }
-                // if list doesn't contain current selected tip bone, drop the selection
-                if (!found)
-                {
-                    m_tipBoneName = "";
-                    m_tipBone = -1;
-                }
-            }
-            
-        }
+        ValidateTipBone(info);
     }
 }
 
-void LightIKPlugin::ConstructConstraints()
+void LightIKPlugin::ValidateRootBone(PropertyInfo& info)
+{
+    info.hint = PROPERTY_HINT_ENUM;
+    if (!get_skeleton())
+    {
+        return;
+    }
+    if (-1 == m_tipBone)
+    {
+        // if tip is not selected allow to chose any bone for root
+        info.hint_string = get_skeleton()->get_concatenated_bone_names();
+        return;
+    }
+
+    // list all parent bones from current tip to skeleton root
+    int32_t bone = m_tipBone;
+    bool found = false;
+    info.hint_string = "";
+
+    while (bone >= 0)
+    {
+        // inverse addition to the list to keep the right order of the bones, from root to current
+        info.hint_string = get_skeleton()->get_bone_name(bone) + "," + info.hint_string;
+        found = found || (bone == m_rootBone);
+        bone = get_skeleton()->get_bone_parent(bone);
+    }
+
+    // if root bone was not found in the branch of cuurent tip bone, it must be reseted
+    if (!found)
+    {
+        m_rootBoneName = "";
+        m_rootBone = -1;
+    }
+}
+
+void LightIKPlugin::ValidateTipBone(PropertyInfo& info)
+{
+    if (!get_skeleton())
+    {
+        return;
+    }
+
+    info.hint = PROPERTY_HINT_ENUM;
+    if (-1 == m_rootBone)
+    {
+        // if root is not selected allow to chose any bone for tip
+        info.hint_string = get_skeleton()->get_concatenated_bone_names();
+        return;
+    }
+    
+    std::stack<int32_t> boneStack;
+    // allow to chose any child bone from the selected root
+    boneStack.emplace(m_rootBone);
+    // create  the list of all child bones from current to all branch leaves
+    // avoid recursion. create the stack of bones and process it.
+    bool found = false;
+    while (!boneStack.empty())
+    {
+        int32_t rootBone = boneStack.top();
+        boneStack.pop();
+        // concatenate names of child bones into the single list
+        info.hint_string += get_skeleton()->get_bone_name(rootBone) + ",";
+        found = found || rootBone == m_tipBone;
+
+        // put all child bones to stack to process them later
+        const auto& bones = get_skeleton()->get_bone_children(rootBone);
+        for (int32_t bone : bones)
+        {
+            boneStack.emplace(bone);
+        }
+    }
+    
+    // if list doesn't contain current selected tip bone, drop the selection
+    if (!found)
+    {
+        m_tipBoneName = "";
+        m_tipBone = -1;
+    }
+}
+
+void LightIKPlugin::MakeConstraints()
 {
     if (-1 == m_tipBone || -1 == m_rootBone)
     {

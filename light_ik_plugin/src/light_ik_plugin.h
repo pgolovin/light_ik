@@ -29,13 +29,14 @@ public:
     void _ready() override;
     void _process(double delta) override;
     void _validate_property(godot::PropertyInfo& info);
-    //void _process_modification() override;
 
 protected:
     static void _bind_methods();
 
 private:
-    void ConstructConstraints();
+    void MakeConstraints();
+    void ValidateRootBone(PropertyInfo& info);
+    void ValidateTipBone(PropertyInfo& info);
 
     String                  m_rootBoneName;
     int32_t                 m_rootBone = -1;
