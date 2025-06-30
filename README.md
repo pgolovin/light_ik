@@ -1,2 +1,2 @@
 # light_ik
-IK plugin for Godot
+light IK library for multy node bone chains with constraints
