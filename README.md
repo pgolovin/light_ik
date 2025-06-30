@@ -1,2 +1,2 @@
 # light_ik
-light IK library for multy node bone chains with constraints
+light IK library for multinode bone chains with constraints
