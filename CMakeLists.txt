@@ -24,6 +24,4 @@ add_compile_definitions(CMAKE_TOOLCHAIN_FILE="${CMAKE_BINARY_DIR}/conan_toolchai
 add_subdirectory(${PROJECT_SOURCE_DIR}/applications/tests)
 add_subdirectory(${PROJECT_SOURCE_DIR}/applications/visualizer)
 add_subdirectory(${PROJECT_SOURCE_DIR}/light_ik)
-add_subdirectory(${PROJECT_SOURCE_DIR}/light_ik_plugin)
-add_subdirectory(${PROJECT_SOURCE_DIR}/godot-cpp)
 
