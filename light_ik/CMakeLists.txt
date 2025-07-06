@@ -7,6 +7,7 @@ set(HEADERS
 )
 
 set(SOURCES
+    "src/light_ik.cpp"    
     "src/helpers.cpp"    
     "src/solver.cpp"
     "src/bone.cpp")

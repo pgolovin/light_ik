@@ -10,7 +10,7 @@ using Vector4 = glm::vec4;
 using Matrix = glm::mat4x4;
 static const float DELTA = 0.00001f;
 
-constexpr bool EnableDebugLogging = true;
+constexpr bool EnableDebugLogging = false;
 
 struct Angle
 {

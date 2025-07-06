@@ -1,6 +1,8 @@
 #include <memory>
 #include <gtest/gtest.h>
 #include "light_ik/light_ik.h"
+#include "../../light_ik/headers/solver.h"
+#include "../../light_ik/headers/bone.h"
 
 #include <string>
 #include <sstream>
