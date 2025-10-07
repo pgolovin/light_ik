@@ -4,10 +4,12 @@
 
 #include "bone.h"
 #include "helpers.h"
-#include "glm/gtx/norm.inl"
 
 #define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/vector_angle.hpp"
 #include "glm/gtx/rotate_vector.hpp"
+
+#include <iostream>
 
 namespace LightIK
 {
@@ -21,28 +23,37 @@ Bone::Bone(const Vector& boneRoot, const Vector& boneTip, const Vector& previous
         throw "Invalid bone length";
     }
 
-    m_rotationMatrix    = glm::identity<Matrix>();
-
     m_axis              = glm::normalize(direction);
-    m_currentAxis       = m_axis;
     m_front             = Helpers::Normal(m_axis, previousAxis);
     m_root              = boneRoot;
-    
-    m_length.base       = glm::length(direction);
-    m_length.l          = m_length.base;
+
     m_length.l2         = glm::length2(direction);
+    m_length.base       = glm::sqrt(m_length.l2);
+    m_length.l          = m_length.base;
 }
 
-void Bone::Rotate(const Vector& axis, float angle)
+void Bone::SetRotation(const Quaternion& rotation)
 {
-    m_rotationMatrix = glm::rotate(m_rotationMatrix, angle, axis);
-    m_currentAxis = m_rotationMatrix * Vector4(m_axis, 1);
+    m_rotation = rotation;
 }
 
-void Bone::Rotate(const Matrix& rotation)
+Quaternion Bone::Rotate(Quaternion externalRotation)
 {
-    m_rotationMatrix *= rotation;
-    m_currentAxis = m_rotationMatrix * Vector4(m_axis, 1);
+    // calculate cumulative rotation from the root to the current bone
+    externalRotation    = glm::normalize(m_rotation * externalRotation);
+    // rotate axis to get its global rotation
+    m_axis              = externalRotation * m_axis;
+    // return the rotation for the next bone.
+    return externalRotation;
+}
+
+Quaternion Bone::GetChainRotation(const Vector& parentBone) const
+{
+    // calculate difference between the current axis and its parent
+    Vector rotationAxis = Helpers::Normal(parentBone, m_axis);
+    real rotationAngle  = glm::orientedAngle(parentBone, m_axis, rotationAxis);
+    // form the quaternion to reflect the rotation
+    return glm::angleAxis(rotationAngle, rotationAxis);
 }
 
 }

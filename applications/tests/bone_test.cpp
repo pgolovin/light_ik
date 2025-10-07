@@ -3,15 +3,25 @@
 #include "light_ik/light_ik.h"
 #include "../../light_ik/headers/solver.h"
 #include "../../light_ik/headers/bone.h"
+#include "../../light_ik/headers/helpers.h"
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/norm.hpp"
+#include "glm/gtx/vector_angle.hpp"
+#include "glm/gtx/rotate_vector.hpp"
 
 #include <string>
 #include <sstream>
+#include <iomanip>
 #include <algorithm>
+
+namespace LightIK
+{
 
 TEST(LightIKTest, can_create_solver)
 {
-    std::unique_ptr<LightIK::Solver> library;
-    ASSERT_NO_THROW(library = std::make_unique<LightIK::Solver>());
+    std::unique_ptr<Solver> library;
+    ASSERT_NO_THROW(library = std::make_unique<Solver>());
 };
 
 class SolverBaseTests : public ::testing::Test
@@ -19,18 +29,52 @@ class SolverBaseTests : public ::testing::Test
 public: 
     SolverBaseTests()
     {
-        m_library = std::make_unique<LightIK::Solver>(); 
+        m_library = std::make_unique<Solver>(); 
     }
+
+    testing::AssertionResult CompareVectors(const Vector& reference, const Vector& result)
+    {
+        if (isnan(result.x) || isnan(result.y) || isnan(result.z))
+        {
+            return testing::AssertionFailure() << "Result is invalid (" << result.x << ", " << result.y << ", " << result.z << ")";
+        }
+        else if (glm::abs(glm::abs(result.x) - glm::abs(reference.x)) > DELTA
+            || glm::abs(glm::abs(result.y) - glm::abs(reference.y)) > DELTA
+            || glm::abs(glm::abs(result.z) - glm::abs(reference.z)) > DELTA )
+        {
+            return testing::AssertionFailure() << "Result mismatch. Expected (" 
+                << (float)reference.x << ", " << (float)reference.y << ", " << (float)reference.z 
+                << ") VS (" 
+                << (float)result.x << ", " << (float)result.y << ", " << (float)result.z << ")";
+        }
+        return testing::AssertionSuccess();
+    }
+
+    testing::AssertionResult ReachThePoint(const Vector& target, const Vector& result)
+    {
+        if (isnan(result.x) || isnan(result.y) || isnan(result.z))
+        {
+            return testing::AssertionFailure() << "Result is invalid (" << result.x << ", " << result.y << ", " << result.z << ")";
+        }
+        real angle = glm::angle(target, result);
+        
+        if (isnan(angle) || angle > DELTA)
+        {
+            return testing::AssertionFailure() << "Result mismatch. Expected (" 
+                << target.x << ", " << target.y << ", " << target.z 
+                << ") VS (" 
+                << result.x << ", " << result.y << ", " << result.z << ")";
+        }
+        return testing::AssertionSuccess();
+    }
+
 protected:
-    virtual void SetUp()
-    {    }
-
-    virtual void TearDown()
-    {    }
-
-    LightIK::Solver& GetSolver() {return *m_library;}
+    Solver& GetSolver() 
+    {
+        return *m_library;
+    }
 private:
-    std::unique_ptr<LightIK::Solver> m_library;
+    std::unique_ptr<Solver> m_library;
 };
 
 TEST_F(SolverBaseTests, can_add_bone)
@@ -56,69 +100,50 @@ TEST_F(SolverBaseTests, length_of_added_bone)
     ASSERT_FLOAT_EQ(2.f, GetSolver().GetBone(index).GetLength());
 }
 
-TEST_F(SolverBaseTests, angle_of_added_bone)
-{
-    GetSolver().AddBone({1, 1, 1});
-    size_t index = GetSolver().GetChainSize() - 1LLU;
-    ASSERT_FLOAT_EQ(0.f, GetSolver().GetBone(index).GetAngleX());
-    ASSERT_FLOAT_EQ(0.f, GetSolver().GetBone(index).GetAngleY());
-    ASSERT_FLOAT_EQ(0.f, GetSolver().GetBone(index).GetAngleZ());
-}
-
 TEST_F(SolverBaseTests, chain_root_default_position)
 {
-    LightIK::Vector result = GetSolver().GetRootPosition();
-    ASSERT_FLOAT_EQ(0, result.x);
-    ASSERT_FLOAT_EQ(0, result.y);
-    ASSERT_FLOAT_EQ(0, result.z);
+    Vector result = GetSolver().GetRootPosition();
+    ASSERT_TRUE(CompareVectors({0,0,0}, result));
 }
 
 TEST_F(SolverBaseTests, chain_root_override)
 {
-    LightIK::Vector target;
+    Vector target;
     ASSERT_NO_THROW(GetSolver().OverrideRootPosition(target));
 }
 
 TEST_F(SolverBaseTests, chain_root_position)
 {
-    LightIK::Vector target{1.f, 23.f, -75.f};
+    Vector target{1.f, 23.f, -75.f};
     GetSolver().OverrideRootPosition(target);
-    LightIK::Vector result = GetSolver().GetRootPosition();
-    ASSERT_FLOAT_EQ(target.x, result.x);
-    ASSERT_FLOAT_EQ(target.y, result.y);
-    ASSERT_FLOAT_EQ(target.z, result.z);
+    Vector result = GetSolver().GetRootPosition();
+    ASSERT_TRUE(CompareVectors(target, result));
 }
 
 TEST_F(SolverBaseTests, chain_target_default_position)
 {
-    LightIK::Vector result = GetSolver().GetTargetPosition();
-    ASSERT_FLOAT_EQ(0, result.x);
-    ASSERT_FLOAT_EQ(0, result.y);
-    ASSERT_FLOAT_EQ(0, result.z);
+    Vector result = GetSolver().GetTargetPosition();
+    ASSERT_TRUE(CompareVectors({0,0,0}, result));
 }
 
 TEST_F(SolverBaseTests, chain_target_set)
 {
-    LightIK::Vector target;
+    Vector target;
     ASSERT_NO_THROW(GetSolver().SetTargetPosition(target));
 }
 
 TEST_F(SolverBaseTests, chain_target_position)
 {
-    LightIK::Vector target{1.f, 23.f, -75.f};
+    Vector target{1.f, 23.f, -75.f};
     GetSolver().SetTargetPosition(target);
-    LightIK::Vector result = GetSolver().GetTargetPosition();
-    ASSERT_FLOAT_EQ(target.x, result.x);
-    ASSERT_FLOAT_EQ(target.y, result.y);
-    ASSERT_FLOAT_EQ(target.z, result.z);
+    Vector result = GetSolver().GetTargetPosition();
+    ASSERT_TRUE(CompareVectors(target, result));
 }
 
 TEST_F(SolverBaseTests, tip_position_empty)
 {
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_FLOAT_EQ(0.f, result.x);
-    ASSERT_FLOAT_EQ(0.f, result.y);
-    ASSERT_FLOAT_EQ(0.f, result.z);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,0}, result));
 }
 
 TEST_F(SolverBaseTests, can_iterate_back)
@@ -149,10 +174,8 @@ private:
 
 TEST_F(BoneLookAtTest, tip_position_no_step)
 {
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_FLOAT_EQ(0.f, result.x);
-    ASSERT_FLOAT_EQ(0.f, result.y);
-    ASSERT_FLOAT_EQ(1.f, result.z);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,1}, result));
 }
 
 TEST_F(BoneLookAtTest, can_iterate_back)
@@ -170,10 +193,8 @@ TEST_F(BoneLookAtTest, tip_position_one_bone_step)
     GetSolver().SetTargetPosition({0.f, 0.f, 1.f});
     GetSolver().IterateBack();
     GetSolver().IterateFront();
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_FLOAT_EQ(0.f, result.x);
-    ASSERT_FLOAT_EQ(0.f, result.y);
-    ASSERT_FLOAT_EQ(1.f, result.z);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,1}, result));
 }
 
 TEST_F(BoneLookAtTest, tip_position_one_bone_step_rotated)
@@ -181,10 +202,8 @@ TEST_F(BoneLookAtTest, tip_position_one_bone_step_rotated)
     GetSolver().SetTargetPosition({0.f, 1.f, 0.f});
     GetSolver().IterateBack();
     GetSolver().IterateFront();
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_NEAR(0.f, result.x, LightIK::DELTA);
-    ASSERT_NEAR(1.f, result.y, LightIK::DELTA);
-    ASSERT_NEAR(0.f, result.z, LightIK::DELTA);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,1,0}, result));
 }
 
 TEST_F(BoneLookAtTest, tip_position_forward_direction)
@@ -192,10 +211,8 @@ TEST_F(BoneLookAtTest, tip_position_forward_direction)
     GetSolver().SetTargetPosition({0.f, 0.f, 1.f});
     GetSolver().IterateBack();
     GetSolver().IterateFront();
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_NEAR(0.f, result.x, LightIK::DELTA);
-    ASSERT_NEAR(0.f, result.y, LightIK::DELTA);
-    ASSERT_NEAR(1.f, result.z, LightIK::DELTA);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,1}, result));
 }
 
 TEST_F(BoneLookAtTest, tip_position_backward_direction)
@@ -203,10 +220,8 @@ TEST_F(BoneLookAtTest, tip_position_backward_direction)
     GetSolver().SetTargetPosition({0.f, 0.f, -1.f});
     GetSolver().IterateBack();
     GetSolver().IterateFront();
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_NEAR(0.f, result.x, LightIK::DELTA);
-    ASSERT_NEAR(0.f, result.y, LightIK::DELTA);
-    ASSERT_NEAR(-1.f, result.z, LightIK::DELTA);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,-1}, result));
 }
 
 TEST_F(BoneLookAtTest, tip_position_zero_direction_no_move)
@@ -214,10 +229,8 @@ TEST_F(BoneLookAtTest, tip_position_zero_direction_no_move)
     GetSolver().SetTargetPosition({0.f, 0.f, 0.f});
     GetSolver().IterateBack();
     GetSolver().IterateFront();
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_NEAR(0.f, result.x, LightIK::DELTA);
-    ASSERT_NEAR(0.f, result.y, LightIK::DELTA);
-    ASSERT_NEAR(1.f, result.z, LightIK::DELTA);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,1}, result));
 }
 
 class BoneChainTest : public SolverBaseTests
@@ -248,34 +261,109 @@ TEST_F(BoneChainTest, can_iterate_front)
 
 TEST_F(BoneChainTest, tip_position_no_step)
 {
-    LightIK::Vector result = GetSolver().GetTipPosition();
-    ASSERT_FLOAT_EQ(0.f, result.x);
-    ASSERT_FLOAT_EQ(0.f, result.y);
-    ASSERT_FLOAT_EQ(2.f, result.z);
+    Vector result = GetSolver().GetTipPosition();
+    ASSERT_TRUE(CompareVectors({0,0,2}, result));
 }
 
-TEST_F(BoneChainTest, debug_test)
+class CustomChainStructureTest : public SolverBaseTests
 {
-    GetSolver().AddBone({0,0,3});
-    GetSolver().AddBone({0,0,4});
-    GetSolver().SetTargetPosition({0.f, 2.5f, 0.0f});
+protected:
+    virtual void SetUp()
+    {
+    }
 
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
+    virtual void TearDown()
+    {
+    }
 
-    LightIK::Vector result = GetSolver().GetTipPosition();
+    testing::AssertionResult ProcessBoneChain(const std::vector<Vector>& bones, const Vector& root, const Vector& target, size_t steps = 1)
+    {
+        GetSolver().OverrideRootPosition(root);
+        for (const auto& bone : bones)
+        {
+            GetSolver().AddBone(bone);
+        }
+        GetSolver().SetTargetPosition(target);
 
-    ASSERT_NEAR(0.0f, result.x, LightIK::DELTA);
-    ASSERT_NEAR(2.5f, result.y, LightIK::DELTA);
-    ASSERT_NEAR(0.0f, result.z, LightIK::DELTA);
+        for (size_t i = 0; i < steps; ++i)
+        {
+            GetSolver().IterateBack();
+            GetSolver().IterateFront();
+        }
+
+        Vector result = GetSolver().GetTipPosition();
+        return CompareVectors(target, result);
+    }
+
+private:
+};
+
+TEST_F(CustomChainStructureTest, double_bone)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 1}, {0, 0, 2}}, {0, 0, 0}, {0, 1, 1}));
 }
 
-struct TestChain
+TEST_F(CustomChainStructureTest, double_bone_3D)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{1, 1, 1}, {1, 2, 1}}, {0, 0, 0}, {0, 1, 1}));
+}
+
+TEST_F(CustomChainStructureTest, double_bone_rotated_tip)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 1}, {0, 1, 1}}, {0, 0, 0}, {0, 0, 1.5}));
+}
+
+TEST_F(CustomChainStructureTest, double_bone_rotated_root_2D)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{1, 0, 0}, {1, 1, 0}}, {0, 0, 0}, {1, 1, 0}));
+}
+
+TEST_F(CustomChainStructureTest, double_bone_rotated_root)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{1, 0, 0}, {1, 1, 0}}, {0, 0, 0}, {1, 0, 1}));
+}
+
+TEST_F(CustomChainStructureTest, double_bone_rotated_root3D)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{1, 1, 0}, {1, 0, 0}}, {0, 0, 0}, {1, 1, 1}));
+}
+
+TEST_F(CustomChainStructureTest, shifted_root)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 1, 3}}, {0, 1, 0}, {0, 0, 2.5}));
+}
+
+TEST_F(CustomChainStructureTest, tri_bone)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{2, 0, 0}, {2, 2, 0}, {0, 2, 0}}, {0, 0, 0}, {0, 6.0, 0}, 10));
+}
+
+TEST_F(CustomChainStructureTest, multi_bone_chain)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, {0, 1, 0}, {4.0, 4.0, 4.0}, 1));
+}
+
+TEST_F(CustomChainStructureTest, tri_bone_chain)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 2}, {0, 2, 2}, {2, 2, 0}}, {0, 0, 0}, {1.0, 3.0, 1.0}, 1));
+}
+
+TEST_F(CustomChainStructureTest, angular_bone_2D)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, {0, 0, 0}, {4, 0, 0}));
+}
+
+TEST_F(CustomChainStructureTest, angular_bone)
+{
+    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, {0, 0, 0}, {3, 3, 0}));
+}
+
+/*struct TestChain
 {
     size_t numBones = 2;
     size_t iterrationsCount = 1;
-    LightIK::Vector targetPosition{0.f, 0.f, 0.f};
-    LightIK::Vector finalTipPosition{0.f, 0.f, 0.f};
+    Vector targetPosition{0.f, 0.f, 0.f};
+    Vector finalTipPosition{0.f, 0.f, 0.f};
     std::string comment{""};
 };
 
@@ -284,7 +372,7 @@ class ChainParametricTest : public ::testing::TestWithParam<TestChain>
 protected:
     virtual void SetUp()
     {
-        m_library = std::make_unique<LightIK::Solver>(); 
+        m_library = std::make_unique<Solver>(); 
         for (size_t i = 0; i < GetParam().numBones; ++i)
         {
             GetSolver().AddBone({0.f, 0.f, (float)(i + 1)});
@@ -297,9 +385,9 @@ protected:
         m_library = nullptr;
     }
 
-    LightIK::Solver& GetSolver() {return *m_library;}
+    Solver& GetSolver() {return *m_library;}
 private:
-    std::unique_ptr<LightIK::Solver> m_library;
+    std::unique_ptr<Solver> m_library;
 };
 
 TEST_P(ChainParametricTest, chain_target)
@@ -310,11 +398,11 @@ TEST_P(ChainParametricTest, chain_target)
         GetSolver().IterateFront();
     }
 
-    LightIK::Vector result = GetSolver().GetTipPosition();
-
-    ASSERT_NEAR(GetParam().finalTipPosition.x, result.x, LightIK::DELTA);
-    ASSERT_NEAR(GetParam().finalTipPosition.y, result.y, LightIK::DELTA);
-    ASSERT_NEAR(GetParam().finalTipPosition.z, result.z, LightIK::DELTA);
+    Vector result = GetSolver().GetTipPosition();
+    
+    ASSERT_NEAR(GetParam().finalTipPosition.x, result.x, DELTA);
+    ASSERT_NEAR(GetParam().finalTipPosition.y, result.y, DELTA);
+    ASSERT_NEAR(GetParam().finalTipPosition.z, result.z, DELTA);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -361,4 +449,6 @@ INSTANTIATE_TEST_SUITE_P(
         return formattedString;
     }
 );
+/**/
 
+};

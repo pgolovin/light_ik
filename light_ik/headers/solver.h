@@ -3,7 +3,7 @@
 #include "bone.h"
 
 #include <vector>
-#include <glm/glm.hpp>
+#include <utility>
 
 namespace LightIK
 {
@@ -17,10 +17,10 @@ public:
     virtual ~Solver() {};
 
     void   AddBone(const Vector& boneEnd);
-    const Bone& GetBone(size_t index) const;
+    Bone&  GetBone(size_t index);
 
     size_t GetChainSize() const { return m_poses[m_defaultPose].bones.size();}
-    Vector GetTipPosition() const { return m_chainTip; }
+    Vector GetTipPosition() const;
 
     void   IterateBack();
     void   IterateFront();
@@ -34,7 +34,17 @@ public:
     
 private:
     void   LookAt(Bone& lookAtBone);
-    void   SolveFlatJoint(Pose& chain, const Vector& target, size_t jointIndex);
+    void   ValidateRotationMatrix(const Matrix& rotation, const Vector& testVector) const;
+
+    struct CompaundVector
+    {
+        Vector direction{0, 0, 0};
+        real length2       = 0.f;
+        real length        = 0.f;
+    };
+    std::pair<CompaundVector, CompaundVector>   FormBinaryJoint(const Vector& joint) const;
+    Quaternion                                  SolveBinaryJoint(CompaundVector& root, CompaundVector& tip, const Vector& target);
+    std::pair<real, real>                       CalculateAngles(const Solver::CompaundVector& root, const Solver::CompaundVector& tip, Vector2 chord) const;
 
     Pose                m_current; // current position of bones
     std::vector<Pose>   m_poses;   // set of predefined bone positions
@@ -43,7 +53,7 @@ private:
     Vector              m_root      {0.f, 0.f, 0.f};
     Vector              m_chainTip  {0.f, 0.f, 0.f};
     Vector              m_target    {0.f, 0.f, 0.f};
-    Matrix              m_accumulatedRotation;
+    Quaternion          m_cumulativeRotation;
 
     Vector              m_testRoot  {0.f, 0.f, 0.f};
 };

@@ -3,10 +3,11 @@
 *******************************************************************/
 
 #include "helpers.h"
-#include "glm/gtx/norm.inl"
-
 #define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/vector_angle.hpp"
 #include "glm/gtx/rotate_vector.hpp"
+
+#include <iostream>
 
 namespace LightIK
 {
@@ -38,4 +39,26 @@ namespace LightIK
 #endif
         return glm::normalize(result);
     }
+
+    RotationParameters Helpers::CalculateRotation(const Vector& axis1, const Vector& axis2)
+    {
+        RotationParameters result;
+        Vector axisNormalized1 = glm::normalize(axis1);
+        Vector axisNormalized2 = glm::normalize(axis2);
+        result.axis = Normal(axisNormalized1, axisNormalized2);
+        result.angle = glm::orientedAngle(axisNormalized1, axisNormalized2, result.axis);
+
+        return result;
+    }
+
+    RotationParameters Helpers::CalculateRotation(const Vector& axis, const Matrix& rotation)
+    {
+        Vector rotationResult = rotation * axis;
+        RotationParameters result;
+        result.axis = Normal(axis, rotationResult);
+        result.angle = glm::orientedAngle(axis, rotationResult, result.axis);
+
+        return result;
+    }
+
 }
