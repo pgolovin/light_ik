@@ -36,15 +36,15 @@ private:
     void   LookAt(Bone& lookAtBone);
     void   ValidateRotationMatrix(const Matrix& rotation, const Vector& testVector) const;
 
-    struct CompaundVector
+    struct CompoundVector
     {
         Vector direction{0, 0, 0};
         real length2       = 0.f;
         real length        = 0.f;
     };
-    std::pair<CompaundVector, CompaundVector>   FormBinaryJoint(const Vector& joint) const;
-    Quaternion                                  SolveBinaryJoint(CompaundVector& root, CompaundVector& tip, const Vector& target);
-    std::pair<real, real>                       CalculateAngles(const Solver::CompaundVector& root, const Solver::CompaundVector& tip, Vector2 chord) const;
+    std::pair<CompoundVector, CompoundVector>   FormBinaryJoint(const Vector& joint) const;
+    Quaternion                                  SolveBinaryJoint(CompoundVector& root, CompoundVector& tip, const Vector& target);
+    std::pair<real, real>                       CalculateAngles(const Solver::CompoundVector& root, const Solver::CompoundVector& tip, Vector2 chord) const;
 
     Pose                m_current; // current position of bones
     std::vector<Pose>   m_poses;   // set of predefined bone positions

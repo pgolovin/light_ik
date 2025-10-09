@@ -40,25 +40,20 @@ namespace LightIK
         return glm::normalize(result);
     }
 
-    RotationParameters Helpers::CalculateRotation(const Vector& axis1, const Vector& axis2)
+    Quaternion Helpers::CalculateRotation(const Vector& from, const Vector& to)
     {
-        RotationParameters result;
-        Vector axisNormalized1 = glm::normalize(axis1);
-        Vector axisNormalized2 = glm::normalize(axis2);
-        result.axis = Normal(axisNormalized1, axisNormalized2);
-        result.angle = glm::orientedAngle(axisNormalized1, axisNormalized2, result.axis);
-
-        return result;
-    }
-
-    RotationParameters Helpers::CalculateRotation(const Vector& axis, const Matrix& rotation)
-    {
-        Vector rotationResult = rotation * axis;
-        RotationParameters result;
-        result.axis = Normal(axis, rotationResult);
-        result.angle = glm::orientedAngle(axis, rotationResult, result.axis);
-
-        return result;
+        // if from and to vectors are colinear, return zero rotation
+        // without this fix error can appear in calculation of close to zero angles that actually should be zero
+        if (glm::length2(glm::cross(from, to)) < DELTA)
+        {
+            return glm::identity<Quaternion>();
+        }
+        // calculate the rotation axis between the from and to vectors
+        Vector rotationAxis = Helpers::Normal(from, to);
+        // calculate angle around calculated axis
+        real rotationAngle  = glm::orientedAngle(from, to, rotationAxis);
+        // form the quaternion to reflect the rotation
+        return glm::angleAxis(rotationAngle, rotationAxis);
     }
 
 }

@@ -30,6 +30,8 @@ Bone::Bone(const Vector& boneRoot, const Vector& boneTip, const Vector& previous
     m_length.l2         = glm::length2(direction);
     m_length.base       = glm::sqrt(m_length.l2);
     m_length.l          = m_length.base;
+
+    m_rotation          = glm::identity<Quaternion>();
 }
 
 void Bone::SetRotation(const Quaternion& rotation)
@@ -49,11 +51,7 @@ Quaternion Bone::Rotate(Quaternion externalRotation)
 
 Quaternion Bone::GetChainRotation(const Vector& parentBone) const
 {
-    // calculate difference between the current axis and its parent
-    Vector rotationAxis = Helpers::Normal(parentBone, m_axis);
-    real rotationAngle  = glm::orientedAngle(parentBone, m_axis, rotationAxis);
-    // form the quaternion to reflect the rotation
-    return glm::angleAxis(rotationAngle, rotationAxis);
+    return Helpers::CalculateRotation(parentBone, m_axis);
 }
 
 }

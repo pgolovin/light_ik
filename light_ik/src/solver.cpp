@@ -57,13 +57,9 @@ void Solver::LookAt(Bone& lookAtBone)
     if (glm::length2(newDirection) > DELTA)
     {
         newDirection = glm::normalize(newDirection);
-        real angle = glm::angle(lookAtBone.GetAxis(), newDirection);
-        if (angle > DELTA)
-        {
-            Vector axis = Helpers::Normal(lookAtBone.GetAxis(), newDirection);
-            m_cumulativeRotation = glm::angleAxis(angle, axis);
-            m_chainTip = m_root + lookAtBone.GetAxis() * lookAtBone.GetLength();
-        }
+
+        lookAtBone.Rotate(Helpers::CalculateRotation(lookAtBone.GetAxis(), newDirection));
+        m_chainTip = m_root + lookAtBone.GetAxis() * lookAtBone.GetLength();
     }
 }
 
@@ -72,20 +68,24 @@ void Solver::IterateFront()
     //front kinematics
     auto& chain = m_poses[m_defaultPose].bones;
 
-    if (chain.empty())
+    if (chain.empty()) // TODO: replace by assert
     {
         return;
     }    
 
+    // put the chain tip to the root of it, here we will rotate bones to their calculated positions and recalculate the actual tip position
     Quaternion chainRotation = glm::identity<Quaternion>();
     m_chainTip = m_root;
     for (auto& bone : chain)
     {
+        // change the root of the next bone according to the end of the previous one
+        bone.ReRoot(m_chainTip);
+        // rotate the bone to world position (following rotations of all previous bones)
+        // and add rotation of the current bone to the cumulative rotation
         chainRotation = bone.Rotate(chainRotation);
+        // calculate the end of the bone which will be the root of the next bone
         m_chainTip += bone.GetAxis() * bone.GetLength();
     }
-
-    std::cout << ">>F>> tip: " << m_chainTip.x << ", "<< m_chainTip.y << ", "<< m_chainTip.z << std::endl;
 }
 
 void Solver::IterateBack()
@@ -111,7 +111,6 @@ void Solver::IterateBack()
     for (size_t i = chain.size(); i > 1; --i)
     {
         const size_t jointIndex = i - 1;
-
         const Vector localJoint = chain[jointIndex].GetRoot() - m_root;
         
         // rotate the root part of the chain according to the accumulated rotations
@@ -129,14 +128,14 @@ void Solver::IterateBack()
     chain.front().SetRotation(m_cumulativeRotation);
 }
 
-std::pair<Solver::CompaundVector, Solver::CompaundVector> Solver::FormBinaryJoint(const Vector& joint) const
+std::pair<Solver::CompoundVector, Solver::CompoundVector> Solver::FormBinaryJoint(const Vector& joint) const
 {
-    CompaundVector armRoot{joint, 0};
+    CompoundVector armRoot{joint, 0};
     armRoot.length2         = glm::length2(armRoot.direction);
     armRoot.length          = glm::sqrt(armRoot.length2);
     armRoot.direction       = glm::normalize(armRoot.direction);
 
-    CompaundVector armTip{m_chainTip - m_root - joint, 0};
+    CompoundVector armTip{m_chainTip - m_root - joint, 0};
     armTip.length2          = glm::length2(armTip.direction);
     armTip.length           = glm::sqrt(armTip.length2);
     armTip.direction        = glm::normalize(armTip.direction);
@@ -144,7 +143,7 @@ std::pair<Solver::CompaundVector, Solver::CompaundVector> Solver::FormBinaryJoin
     return {armRoot, armTip};
 }
 
-Quaternion Solver::SolveBinaryJoint(Solver::CompaundVector& root, Solver::CompaundVector& tip, const Vector& target)
+Quaternion Solver::SolveBinaryJoint(Solver::CompoundVector& root, Solver::CompoundVector& tip, const Vector& target)
 {
     // position local coordinate system to have root bone aligned with Y axis and with target forms XoY plane.
     // Make the working plane, the plane made by 2 vectors: initial arm and vector to target
@@ -155,7 +154,7 @@ Quaternion Solver::SolveBinaryJoint(Solver::CompaundVector& root, Solver::Compau
     // calculate angles required to reach the target with current binary joint
     auto angles             = CalculateAngles(root, tip, {glm::dot(target, x), glm::dot(target, y)});
     // calculate modifications for the chain root
-    Quaternion rootRotation = glm::angleAxis(glm::pi<real>() / 2.f - angles.first, z); 
+    Quaternion rootRotation = glm::angleAxis(glm::pi<real>() / (real)2.0 - angles.first, z); 
 
     // rotate whole chain according to root rotation to calculate relative tip rotation angle.
     root.direction          = rootRotation * y;
@@ -168,18 +167,12 @@ Quaternion Solver::SolveBinaryJoint(Solver::CompaundVector& root, Solver::Compau
     m_cumulativeRotation    = glm::normalize(rootRotation * m_cumulativeRotation);
 
     //Calculate an axis and an angle between old and new position of the tip
-    RotationParameters deltaRotation;
-    deltaRotation.axis      = Helpers::Normal(currentTip, tip.direction);
-    deltaRotation.angle     = glm::orientedAngle(currentTip, tip.direction, deltaRotation.axis);
-    return glm::angleAxis(deltaRotation.angle, deltaRotation.axis);
+    return Helpers::CalculateRotation(currentTip, tip.direction);
 }
 
-std::pair<real, real> Solver::CalculateAngles(const Solver::CompaundVector& root, const Solver::CompaundVector& tip, Vector2 chord) const
+std::pair<real, real> Solver::CalculateAngles(const Solver::CompoundVector& root, const Solver::CompoundVector& tip, Vector2 chord) const
 {
-    if(chord.x < -DELTA)
-    {
-        std::cout << ">>>>>>> HEH?" << std::endl << ">>>>>>> root = " << glm::length(root.direction) << " tip = " << glm::length(tip.direction) << std::endl;
-    }
+    assert(chord.x > -DELTA);
     if (chord.x > -DELTA && chord.x < 0)
     {
         chord.x             = 0;
@@ -190,7 +183,7 @@ std::pair<real, real> Solver::CalculateAngles(const Solver::CompaundVector& root
     real lbsq               = chordLength * chordLength;
     // calculate local angles on the given coordinate system
     // TODO: check low values of chord.y
-    real angleChord         = (chord.x > DELTA) ? glm::atan(chord.y/chord.x) : glm::sign(chord.y) * glm::pi<float>() / 2.f;
+    real angleChord         = (chord.x > DELTA) ? glm::atan(chord.y/chord.x) : glm::sign(chord.y) * glm::pi<real>() / 2.0;
  
     // according to the article, calculate position of bones on the coordinate system, 
     // https://www.learnaboutrobots.com/inverseKinematics.htm
@@ -214,7 +207,7 @@ void Solver::ValidateRotationMatrix(const Matrix& rotation, const Vector& testVe
         Vector test         = glm::normalize(testVector);
         Vector testResult   = rotation * Vector4(test, 1);
         Vector testAxis     = glm::normalize(glm::cross(test, testResult));
-        float angle         = glm::orientedAngle(test, Vector(testResult), testAxis );
+        real angle         = glm::orientedAngle(test, Vector(testResult), testAxis );
 
         std::cout << "<-> rotation state: (" << test.x << "; " << test.y << "; " << test.z << ") -> (" << testResult.x << "; " << testResult.y << "; " << testResult.z << ")" << std::endl;
         std::cout << "<->               : (" << testAxis.x << "; " << testAxis.y << "; " << testAxis.z << ") angle: " << angle << std::endl;
