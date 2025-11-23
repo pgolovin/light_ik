@@ -1,6 +1,7 @@
 #include <memory>
 #include <gtest/gtest.h>
-#include "light_ik/light_ik.h"
+
+#include "test_helpers.h"
 #include "../../light_ik/headers/solver.h"
 #include "../../light_ik/headers/bone.h"
 #include "../../light_ik/headers/helpers.h"
@@ -18,7 +19,7 @@
 namespace LightIK
 {
 
-TEST(LightIKTest, can_create_solver)
+TEST(SolverTest, can_create_solver)
 {
     std::unique_ptr<Solver> library;
     ASSERT_NO_THROW(library = std::make_unique<Solver>());
@@ -32,40 +33,20 @@ public:
         m_library = std::make_unique<Solver>(); 
     }
 
-    testing::AssertionResult CompareVectors(const Vector& reference, const Vector& result)
+    void BuildChain(const std::vector<Vector>& chain)
     {
-        if (isnan(result.x) || isnan(result.y) || isnan(result.z))
+        m_library->OverrideRootPosition(chain.front());
+        Vector direction{Helpers::DefaultAxis()};
+        for (size_t i = 1; i < chain.size(); ++i)
         {
-            return testing::AssertionFailure() << "Result is invalid (" << result.x << ", " << result.y << ", " << result.z << ")";
+            Vector axis         = chain[i] - chain[i - 1];
+            real length         = glm::length(axis);
+            axis                = glm::normalize(axis);
+            Vector rotationAxis = Helpers::Normal(direction, axis);
+            real angle          = glm::orientedAngle(direction, axis, rotationAxis);
+            m_library->AddBone(length, glm::angleAxis(angle, rotationAxis));
+            std::swap(direction, axis);
         }
-        else if (glm::abs(glm::abs(result.x) - glm::abs(reference.x)) > DELTA
-            || glm::abs(glm::abs(result.y) - glm::abs(reference.y)) > DELTA
-            || glm::abs(glm::abs(result.z) - glm::abs(reference.z)) > DELTA )
-        {
-            return testing::AssertionFailure() << "Result mismatch. Expected (" 
-                << (float)reference.x << ", " << (float)reference.y << ", " << (float)reference.z 
-                << ") VS (" 
-                << (float)result.x << ", " << (float)result.y << ", " << (float)result.z << ")";
-        }
-        return testing::AssertionSuccess();
-    }
-
-    testing::AssertionResult ReachThePoint(const Vector& target, const Vector& result)
-    {
-        if (isnan(result.x) || isnan(result.y) || isnan(result.z))
-        {
-            return testing::AssertionFailure() << "Result is invalid (" << result.x << ", " << result.y << ", " << result.z << ")";
-        }
-        real angle = glm::angle(target, result);
-        
-        if (isnan(angle) || angle > DELTA)
-        {
-            return testing::AssertionFailure() << "Result mismatch. Expected (" 
-                << target.x << ", " << target.y << ", " << target.z 
-                << ") VS (" 
-                << result.x << ", " << result.y << ", " << result.z << ")";
-        }
-        return testing::AssertionSuccess();
     }
 
 protected:
@@ -77,56 +58,101 @@ private:
     std::unique_ptr<Solver> m_library;
 };
 
+TEST_F(SolverBaseTests, defult_joints)
+{
+    ASSERT_EQ(1, GetSolver().GetJoints().size());
+}
+
 TEST_F(SolverBaseTests, can_add_bone)
 {
-    ASSERT_NO_THROW(GetSolver().AddBone({0,0,1}));
+    ASSERT_NO_THROW(GetSolver().AddBone(1, glm::identity<Quaternion>()));
 }
 
-TEST_F(SolverBaseTests, chain_length_default_zero)
+TEST_F(SolverBaseTests, new_bone_adds_joint)
 {
-    ASSERT_EQ(0, GetSolver().GetChainSize());
+    GetSolver().AddBone(1, glm::identity<Quaternion>());
+    ASSERT_EQ(2, GetSolver().GetJoints().size());
 }
 
-TEST_F(SolverBaseTests, chain_lenght_bone_increments)
+TEST_F(SolverBaseTests, first_bone_joint_position)
 {
-    GetSolver().AddBone({0,0,1});
-    ASSERT_EQ(1, GetSolver().GetChainSize());
+    GetSolver().AddBone(1, glm::identity<Quaternion>());
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 1, 0), GetSolver().GetJoints().back()));
 }
 
-TEST_F(SolverBaseTests, length_of_added_bone)
+TEST_F(SolverBaseTests, first_bone_oriented_position)
 {
-    GetSolver().AddBone({0, 0, 2});
-    size_t index = GetSolver().GetChainSize() - 1LLU;
-    ASSERT_FLOAT_EQ(2.f, GetSolver().GetBone(index).GetLength());
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 2), GetSolver().GetJoints().back()));
 }
 
-TEST_F(SolverBaseTests, chain_root_default_position)
+TEST_F(SolverBaseTests, second_bone_position)
+{
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().AddBone(1, glm::identity<Quaternion>());
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 3), GetSolver().GetJoints().back()));
+}
+
+TEST_F(SolverBaseTests, second_bone_oriented_position)
+{
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, -1, 2), GetSolver().GetJoints().back()));
+}
+
+TEST_F(SolverBaseTests, second_bone_oriented_position_z)
+{
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 0, 2), GetSolver().GetJoints().back()));
+}
+
+TEST_F(SolverBaseTests, default_root)
 {
     Vector result = GetSolver().GetRootPosition();
-    ASSERT_TRUE(CompareVectors({0,0,0}, result));
+    ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, result));
 }
 
-TEST_F(SolverBaseTests, chain_root_override)
+TEST_F(SolverBaseTests, reroot_empty_chain)
 {
-    Vector target;
-    ASSERT_NO_THROW(GetSolver().OverrideRootPosition(target));
+    GetSolver().OverrideRootPosition({0, 1, 0});
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 1, 0), GetSolver().GetJoints().front()));
 }
 
-TEST_F(SolverBaseTests, chain_root_position)
+TEST_F(SolverBaseTests, reroot_chain_before)
 {
-    Vector target{1.f, 23.f, -75.f};
-    GetSolver().OverrideRootPosition(target);
-    Vector result = GetSolver().GetRootPosition();
-    ASSERT_TRUE(CompareVectors(target, result));
+    GetSolver().OverrideRootPosition({0, 1, 0});
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 1, 2), GetSolver().GetJoints().back()));
+}
+
+TEST_F(SolverBaseTests, reroot_chain_after)
+{
+    GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
+    GetSolver().OverrideRootPosition({0, 1, 0});
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 1, 2), GetSolver().GetJoints().back()));
+}
+
+TEST_F(SolverBaseTests, flat_chain_joints)
+{
+    std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
+    BuildChain(chain);
+    auto& joints = GetSolver().GetJoints();
+    for(size_t i = 0; i < joints.size(); ++i)
+    {
+        ASSERT_TRUE(TestHelpers::CompareVectors(chain[i], joints[i])) << "Failed at " << i << "th";
+    }
 }
 
 TEST_F(SolverBaseTests, chain_target_default_position)
 {
     Vector result = GetSolver().GetTargetPosition();
-    ASSERT_TRUE(CompareVectors({0,0,0}, result));
+    ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, result));
 }
 
-TEST_F(SolverBaseTests, chain_target_set)
+TEST_F(SolverBaseTests, can_set_target)
 {
     Vector target;
     ASSERT_NO_THROW(GetSolver().SetTargetPosition(target));
@@ -137,13 +163,13 @@ TEST_F(SolverBaseTests, chain_target_position)
     Vector target{1.f, 23.f, -75.f};
     GetSolver().SetTargetPosition(target);
     Vector result = GetSolver().GetTargetPosition();
-    ASSERT_TRUE(CompareVectors(target, result));
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, result));
 }
 
 TEST_F(SolverBaseTests, tip_position_empty)
 {
     Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,0}, result));
+    ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, result));
 }
 
 TEST_F(SolverBaseTests, can_iterate_back)
@@ -160,300 +186,286 @@ TEST_F(SolverBaseTests, can_iterate_front)
 class BoneLookAtTest : public SolverBaseTests
 {
 protected:
-    virtual void SetUp()
+    
+    void SetupChain(const std::vector<Vector>& chain, const Vector& target)
     {
-        GetSolver().AddBone({0,0,1});
-    }
-
-    virtual void TearDown()
-    {
-    }
-
-private:
-};
-
-TEST_F(BoneLookAtTest, tip_position_no_step)
-{
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,1}, result));
-}
-
-TEST_F(BoneLookAtTest, can_iterate_back)
-{
-    ASSERT_NO_THROW(GetSolver().IterateBack());
-}
-
-TEST_F(BoneLookAtTest, can_iterate_front)
-{
-    ASSERT_NO_THROW(GetSolver().IterateBack());
-}
-
-TEST_F(BoneLookAtTest, tip_position_one_bone_step)
-{
-    GetSolver().SetTargetPosition({0.f, 0.f, 1.f});
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,1}, result));
-}
-
-TEST_F(BoneLookAtTest, tip_position_one_bone_step_rotated)
-{
-    GetSolver().SetTargetPosition({0.f, 1.f, 0.f});
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,1,0}, result));
-}
-
-TEST_F(BoneLookAtTest, tip_position_forward_direction)
-{
-    GetSolver().SetTargetPosition({0.f, 0.f, 1.f});
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,1}, result));
-}
-
-TEST_F(BoneLookAtTest, tip_position_backward_direction)
-{
-    GetSolver().SetTargetPosition({0.f, 0.f, -1.f});
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,-1}, result));
-}
-
-TEST_F(BoneLookAtTest, tip_position_zero_direction_no_move)
-{
-    GetSolver().SetTargetPosition({0.f, 0.f, 0.f});
-    GetSolver().IterateBack();
-    GetSolver().IterateFront();
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,1}, result));
-}
-
-class BoneChainTest : public SolverBaseTests
-{
-protected:
-    virtual void SetUp()
-    {
-        GetSolver().AddBone({0,0,1});
-        GetSolver().AddBone({0,0,2});
-    }
-
-    virtual void TearDown()
-    {
-    }
-
-private:
-};
-
-TEST_F(BoneChainTest, can_iterate_back)
-{
-    ASSERT_NO_THROW(GetSolver().IterateBack());
-}
-
-TEST_F(BoneChainTest, can_iterate_front)
-{
-    ASSERT_NO_THROW(GetSolver().IterateFront());
-}
-
-TEST_F(BoneChainTest, tip_position_no_step)
-{
-    Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(CompareVectors({0,0,2}, result));
-}
-
-class CustomChainStructureTest : public SolverBaseTests
-{
-protected:
-    virtual void SetUp()
-    {
-    }
-
-    virtual void TearDown()
-    {
-    }
-
-    testing::AssertionResult ProcessBoneChain(const std::vector<Vector>& bones, const Vector& root, const Vector& target, size_t steps = 1)
-    {
-        GetSolver().OverrideRootPosition(root);
-        for (const auto& bone : bones)
-        {
-            GetSolver().AddBone(bone);
-        }
+        BuildChain(chain);
         GetSolver().SetTargetPosition(target);
-
-        for (size_t i = 0; i < steps; ++i)
-        {
-            GetSolver().IterateBack();
-            GetSolver().IterateFront();
-        }
-
-        Vector result = GetSolver().GetTipPosition();
-        return CompareVectors(target, result);
+        GetSolver().CompleteChain();
     }
 
-private:
-};
-
-TEST_F(CustomChainStructureTest, double_bone)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 1}, {0, 0, 2}}, {0, 0, 0}, {0, 1, 1}));
-}
-
-TEST_F(CustomChainStructureTest, double_bone_3D)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{1, 1, 1}, {1, 2, 1}}, {0, 0, 0}, {0, 1, 1}));
-}
-
-TEST_F(CustomChainStructureTest, double_bone_rotated_tip)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 1}, {0, 1, 1}}, {0, 0, 0}, {0, 0, 1.5}));
-}
-
-TEST_F(CustomChainStructureTest, double_bone_rotated_root_2D)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{1, 0, 0}, {1, 1, 0}}, {0, 0, 0}, {1, 1, 0}));
-}
-
-TEST_F(CustomChainStructureTest, double_bone_rotated_root)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{1, 0, 0}, {1, 1, 0}}, {0, 0, 0}, {1, 0, 1}));
-}
-
-TEST_F(CustomChainStructureTest, double_bone_rotated_root3D)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{1, 1, 0}, {1, 0, 0}}, {0, 0, 0}, {1, 1, 1}));
-}
-
-TEST_F(CustomChainStructureTest, shifted_root)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 1, 3}}, {0, 1, 0}, {0, 0, 2.5}));
-}
-
-TEST_F(CustomChainStructureTest, tri_bone)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{2, 0, 0}, {2, 2, 0}, {0, 2, 0}}, {0, 0, 0}, {0, 6.0, 0}, 10));
-}
-
-TEST_F(CustomChainStructureTest, multi_bone_chain)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, {0, 1, 0}, {4.0, 4.0, 4.0}));
-}
-
-TEST_F(CustomChainStructureTest, tri_bone_chain)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 0, 2}, {0, 2, 2}, {2, 2, 0}}, {0, 0, 0}, {1.0, 3.0, 1.0}));
-}
-
-TEST_F(CustomChainStructureTest, angular_bone_2D)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, {0, 0, 0}, {4, 0, 0}));
-}
-
-TEST_F(CustomChainStructureTest, angular_bone)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, {0, 0, 0}, {3, 3, 0}));
-}
-
-TEST_F(CustomChainStructureTest, multi_bone_reach)
-{
-    ASSERT_TRUE(ProcessBoneChain({Vector{0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, {0, 1, 0}, {4.0, 6.0, 4.0}, 5));
-}
-
-/*struct TestChain
-{
-    size_t numBones = 2;
-    size_t iterrationsCount = 1;
-    Vector targetPosition{0.f, 0.f, 0.f};
-    Vector finalTipPosition{0.f, 0.f, 0.f};
-    std::string comment{""};
-};
-
-class ChainParametricTest : public ::testing::TestWithParam<TestChain>
-{
-protected:
-    virtual void SetUp()
-    {
-        m_library = std::make_unique<Solver>(); 
-        for (size_t i = 0; i < GetParam().numBones; ++i)
-        {
-            GetSolver().AddBone({0.f, 0.f, (float)(i + 1)});
-        }
-        GetSolver().SetTargetPosition(GetParam().targetPosition);
-    }
-
-    virtual void TearDown()
-    {
-        m_library = nullptr;
-    }
-
-    Solver& GetSolver() {return *m_library;}
-private:
-    std::unique_ptr<Solver> m_library;
-};
-
-TEST_P(ChainParametricTest, chain_target)
-{
-    for (size_t i = 0; i < GetParam().iterrationsCount; ++i)
+    void Step()
     {
         GetSolver().IterateBack();
         GetSolver().IterateFront();
     }
+private:
+};
 
-    Vector result = GetSolver().GetTipPosition();
-    
-    ASSERT_NEAR(GetParam().finalTipPosition.x, result.x, DELTA);
-    ASSERT_NEAR(GetParam().finalTipPosition.y, result.y, DELTA);
-    ASSERT_NEAR(GetParam().finalTipPosition.z, result.z, DELTA);
+TEST_F(BoneLookAtTest, simple)
+{
+    Vector target{1, 0, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}}, target);
+    Step();    
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    SimpleChainParametricTest,
-    ChainParametricTest,
-    ::testing::Values(
-        TestChain{ 2, 1, {0.f, 2.f, 0.f},   {0.f, 2.f, 0.f},    "base rotation" },
-        TestChain{ 2, 1, {0.f, 1.f, 1.f},   {0.f, 1.f, 1.f},    "Q1" },
-        TestChain{ 2, 1, {0.f, 1.f, -1.f},  {0.f, 1.f, -1.f},   "Q2" },
-        TestChain{ 2, 1, {0.f, -1.f, -1.f}, {0.f, -1.f, -1.f},  "Q3" },
-        TestChain{ 2, 1, {0.f, -1.f, 1.f},  {0.f, -1.f, 1.f},   "Q4" },
-        TestChain{ 2, 1, {0.f, 0.f, -2.f},  {0.f, 0.f, -2.f},   "collinear" },
-        TestChain{ 2, 1, {0.f, 0.f, 1.f},   {0.f, 0.f, 1.f},    "halved" },
-        TestChain{ 2, 1, {0.f, 0.f, 10.f},  {0.f, 0.f, 2.f},    "unreachable" },
-        TestChain{ 2, 1, {0.f, 2.f, 2.f},   {0.f, 1.414213f, 1.414213f},    "unreachable" },
-        TestChain{ 2, 1, {0.f, 2.f, -2.f},  {0.f, 1.414213f, -1.414213f},   "unreachable" },
-        TestChain{ 2, 1, {0.f, 0.f, 0.f},   {0.f, 0.f, 0.f},     "loop" },
-        TestChain{ 3, 1, {0.f, 2.f, 2.f},   {0.f, 2.f, 2.f},     "chain_3" },
-        TestChain{ 4, 1, {1.f, 2.f, 1.5f},  {1.f, 2.f, 1.5f},    "chain_4" },
-        TestChain{ 5, 1, {1.f, 0.f, 1.5f},  {1.f, 0.f, 1.5f},    "chain_5" }
-    ),
-    [](const ::testing::TestParamInfo<ChainParametricTest::ParamType>& info)
-    {
-        std::ostringstream str;
-        str << "chain_target_" << info.param.comment << "_" << info.param.numBones
-            << "_" << info.param.targetPosition.x
-            << "_" << info.param.targetPosition.y
-            << "_" << info.param.targetPosition.z;
+TEST_F(BoneLookAtTest, overlength)
+{
+    Vector target{1, 0, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 1}}, target);
+    Step();
 
-        std::string formattedString = str.str();
-        size_t pos = 0;
-        while ((pos = formattedString.find(' ', 0L)) < formattedString.size())
-        {
-            formattedString[pos] = '_';
-        }
-        while ((pos = formattedString.find('-', 0L)) < formattedString.size())
-        {
-            formattedString[pos] = 'n';
-        }
-        while ((pos = formattedString.find('.', 0L)) < formattedString.size())
-        {
-            formattedString[pos] = 'd';
-        }
-        return formattedString;
+    ASSERT_TRUE(TestHelpers::CompareVectors(target * sqrt(2), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtTest, distant)
+{
+    Vector target{10, 0, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(target), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtTest, rooted)
+{
+    Vector target{1, 1, 0};
+    SetupChain({Vector{0, 1, 0}, {0, 1, 1}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtTest, behind)
+{
+    Vector target{0, 0, -1};
+    SetupChain({Vector{0, 0, 0}, {0, 0, 1}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtTest, forward)
+{
+    Vector target{0, 1, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+class BoneChainTest : public BoneLookAtTest
+{
+};
+
+TEST_F(BoneChainTest, the_same_position)
+{
+    Vector target{0, 2, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, the_same_position_oriented)
+{
+    Vector target{0, 2, 2};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 1}, {0, 2, 2}}, target);
+    Step();    
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, simple_rotation)
+{
+    Vector target{0, 1, 1};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, simple_rotation_oriented)
+{
+    Vector target{0, 2, 0};
+    SetupChain({Vector{0, 0, 0}, {1, 1, 1}, {2, 2, 2}}, target);
+    Step();    
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, full_chain_rotation)
+{
+    Vector target{0, 0, 2};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, full_chain_orientation)
+{
+    Vector target{0, -1, -1};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, chain_3D)
+{
+    Vector target{0, 1, 1};
+    SetupChain({Vector{0, 0, 0}, {1, 1, 1}, {1, 2, 1}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone)
+{
+    Vector target{0, 1, 1};
+    SetupChain({Vector{0, 0, 0}, {0, 0, 1}, {0, 0, 2}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone_3D)
+{
+    Vector target{0, 1, 1};
+    SetupChain({Vector{0, 0, 0}, {1, 1, 1}, {1, 2, 1}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone_rotated_tip)
+{
+    Vector target{0, 0, 1.5};
+    SetupChain({Vector{0, 0, 0}, {0, 0, 1}, {0, 1, 1}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+
+TEST_F(BoneChainTest, double_bone_rotated_root_2D)
+{
+    Vector target{1, 1, 0};
+    SetupChain({Vector{0, 0, 0}, {1, 0, 0}, {1, 1, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone_rotated_root)
+{
+    Vector target{1, 0, 1};
+    SetupChain({Vector{0, 0, 0}, {1, 0, 0}, {1, 1, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone_rotated_root3D)
+{
+    Vector target{1, 1, 1};
+    SetupChain({Vector{0, 0, 0}, {1, 1, 0}, {1, 0, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, shifted_root)
+{
+    Vector target{0, 0, 2.5};
+    SetupChain({Vector{0, 1, 0}, {0, 1, 2}, {0, 1, 3}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, tri_bone)
+{
+    Vector target{0, 6.0, 0};
+    SetupChain({Vector{0, 0, 0}, {2, 0, 0}, {2, 2, 0}, {0, 2, 0}}, target);
+    for (size_t i = 0; i < 10; ++i)
+    {
+        Step();
     }
-);
-/**/
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, double_bone_chain)
+{
+    Vector target{2, 2, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 0, -2}, {0, 2, -2}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, multi_bone_chain)
+{
+    Vector target{1, 4, 4};
+    SetupChain({Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, tri_bone_chain)
+{
+    Vector target{1.0, 3.0, 1.0};
+    SetupChain({Vector{0, 0, 0}, {0, 0, 2}, {0, 2, 2}, {2, 2, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, angular_bone_2D)
+{
+    Vector target{4, 0, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, angular_bone)
+{
+    Vector target{3, 3, 0};
+    SetupChain({Vector{0, 0, 0}, {0, 1, 2}, {0, 2, 0}, {0, 3, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainTest, multi_bone_reach)
+{
+    Vector target{4, 6, 4};
+    Vector root{0, 1, 0};
+    SetupChain({root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareDirections(target - root, GetSolver().GetTipPosition() - root));
+}
+
+TEST_F(BoneChainTest, multi_bone_reach_multistep)
+{
+    Vector target{4, 6, 4};
+    Vector root{0, 1, 0};
+    SetupChain({root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, target);
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        Step();
+    }
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target - root, GetSolver().GetTipPosition() - root));
+}
 
 };

@@ -14,44 +14,22 @@
 namespace LightIK
 {
 
-Bone::Bone(const Vector& boneRoot, const Vector& boneTip, const Vector& previousAxis)
+Bone::Bone(real length, const Quaternion& orientation)
+    : m_rotation(orientation)
+    , m_length(length, false)
 {
-    Vector direction = boneTip - boneRoot;
-    if (glm::length2(direction) < DELTA)
-    {
-        assert(false);
-        throw "Invalid bone length";
-    }
-
-    m_axis              = glm::normalize(direction);
-    m_front             = Helpers::Normal(m_axis, previousAxis);
-    m_root              = boneRoot;
-
-    m_length.l2         = glm::length2(direction);
-    m_length.base       = glm::sqrt(m_length.l2);
-    m_length.l          = m_length.base;
-
-    m_rotation          = glm::identity<Quaternion>();
+    m_globalOrientation = glm::identity<Quaternion>();
 }
 
-void Bone::SetRotation(const Quaternion& rotation)
+void Bone::SetRotation(const Quaternion& orientation)
 {
-    m_rotation = rotation;
+    // rotate the bone coordinate system according to delta rotation of the bone
+    m_rotation       = orientation;
 }
 
-Quaternion Bone::Rotate(Quaternion externalRotation)
+void Bone::SetGlobalOrientation(const Quaternion& orientation)
 {
-    // calculate cumulative rotation from the root to the current bone
-    externalRotation    = glm::normalize(m_rotation * externalRotation);
-    // rotate axis to get its global rotation
-    m_axis              = externalRotation * m_axis;
-    // return the rotation for the next bone.
-    return externalRotation;
-}
-
-Quaternion Bone::GetChainRotation(const Vector& parentBone) const
-{
-    return Helpers::CalculateRotation(parentBone, m_axis);
+    m_globalOrientation = orientation;
 }
 
 }

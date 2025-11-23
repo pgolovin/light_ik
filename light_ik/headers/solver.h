@@ -16,35 +16,31 @@ public:
     Solver();
     virtual ~Solver() {};
 
-    void   AddBone(const Vector& boneEnd);
+    void   AddBone(real length, const Quaternion& localOrientation);
     Bone&  GetBone(size_t index);
+    void   CompleteChain();
 
     size_t GetChainSize() const { return m_poses[m_defaultPose].bones.size();}
     Vector GetTipPosition() const;
+
+    const std::vector<Vector> GetJoints() const {return m_joints;}
 
     void   IterateBack();
     void   IterateFront();
 
     // TODO: Think twice and... remove?
     void   OverrideRootPosition(const Vector& rootPosition);
-    Vector GetRootPosition() const { return m_root; }
+    Vector GetRootPosition() const { return m_joints.front(); }
 
     void   SetTargetPosition(const Vector& target);
     Vector GetTargetPosition() const { return m_target; }
     
 private:
-    void   LookAt(Bone& lookAtBone);
+    void                    LookAt(const Vector& initialDirection, const Vector& target);
+    Vector                  SolveBinaryJoint(Bone& bone, const Vector& root, const Vector& tip, const Vector& target);
+    std::pair<real, real>   CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
+    
     void   ValidateRotationMatrix(const Matrix& rotation, const Vector& testVector) const;
-
-    struct CompoundVector
-    {
-        Vector direction{0, 0, 0};
-        real length2       = 0.f;
-        real length        = 0.f;
-    };
-    std::pair<CompoundVector, CompoundVector>   FormBinaryJoint(const Vector& joint) const;
-    Quaternion                                  SolveBinaryJoint(CompoundVector& root, CompoundVector& tip, const Vector& target);
-    std::pair<real, real>                       CalculateAngles(const Solver::CompoundVector& root, const Solver::CompoundVector& tip, Vector2 chord) const;
 
     Pose                m_current; // current position of bones
     std::vector<Pose>   m_poses;   // set of predefined bone positions
@@ -54,8 +50,11 @@ private:
     Vector              m_chainTip  {0.f, 0.f, 0.f};
     Vector              m_target    {0.f, 0.f, 0.f};
     Quaternion          m_cumulativeRotation;
-
     Vector              m_testRoot  {0.f, 0.f, 0.f};
+    CoordinateSystem    m_lastCoordinateSystem;
+    
+    Quaternion          m_localOrientation;
+    std::vector<Vector> m_joints;
 };
 
 }

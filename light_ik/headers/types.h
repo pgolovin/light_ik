@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 #include <glm/glm.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
 
 namespace LightIK
 {
@@ -12,7 +14,7 @@ using Matrix        = glm::mat<3, 3, real, glm::highp>;
 using Matrix3       = glm::mat<3, 3, real, glm::highp>;
 using Quaternion    = glm::qua<real, glm::highp>;
 
-static const real DELTA = 0.00001f;
+static const real EPSILON   = 1e-14;
 
 constexpr bool EnableDebugLogging = true;
 
@@ -20,6 +22,15 @@ struct RotationParameters
 {
     Vector axis{0,0,0};
     real angle{0.f};
+};
+
+using CoordinateSystem = Matrix;
+enum class Axis : size_t
+{
+    x,
+    y,
+    z,
+    total
 };
 
 struct Angle
@@ -34,10 +45,29 @@ struct Angle
 
 struct Length
 {
-    real base      = 1.f;       // initial length
+    Length() = default;
+
+    Length(real inL2) 
+        : l2(inL2)
+        , l(glm::sqrt(inL2))
+        , base(l)
+    {
+
+    }
+
+    Length(real inL, bool normal)
+        : l2(inL * inL)
+        , l(inL)
+        , base(inL)
+    {
+
+    }
+
     real l         = 1.f;       // current length
     real l2        = 1.f;       // current sqared length
+    real base      = 1.f;       // initial length
     real stretch   = 0.f;       // extension factor. if 0 bone has fixed length
 };
+
 
 }
