@@ -31,29 +31,24 @@ void LightIK::Reset()
     m_solver = std::make_unique<Solver>();
 }
 
+void LightIK::AddBone(real length, const Quaternion& orientation)
+{
+    m_solver->AddBone(length, orientation);
+}
+
+void LightIK::CompleteChain()
+{
+    m_solver->CompleteChain();
+}
+
 void LightIK::SetRootPosition(const Vector& rootPosition)
 {
     m_solver->OverrideRootPosition(rootPosition);
 }
 
-float LightIK::GetBoneLength(size_t index) const
-{
-    return m_solver->GetBone(index).GetLength();
-}
-
 void LightIK::SetTargetPosition(const Vector& targetPosition)
 {
     m_solver->SetTargetPosition(targetPosition);
-}
-
-Vector LightIK::GetTargetPosition()const
-{
-    return m_solver->GetTargetPosition();
-}
-
-Vector LightIK::GetTipPosition()const
-{
-    return m_solver->GetTipPosition();
 }
 
 size_t LightIK::UpdateChainPosition(size_t iterrations)
@@ -73,68 +68,38 @@ size_t LightIK::UpdateChainPosition(size_t iterrations)
     return iterrations;
 }
 
-void LightIK::GetBoneRotations(std::vector<Matrix>& rotations) const
+std::vector<Quaternion> LightIK::GetDeltaRotations() const
 {
-    rotations.clear();
-    rotations.resize(m_solver->GetChainSize());
+    const auto& chain = m_solver->GetBones().bones;
 
+    std::vector<Quaternion> result;
+    result.reserve(chain.size());
+
+    static Quaternion dummy = glm::identity<Quaternion>(); 
+    const Quaternion* previousRotation = &dummy;
+    for (auto& bone : chain)
+    {
+        result.push_back(bone.GetGlobalOrientation() * glm::inverse(*previousRotation));
+        previousRotation = &bone.GetGlobalOrientation();
+    }
+    
+    return result;
 }
 
-std::vector<RotationParameters> LightIK::GetRotationParameters(Vector initialDirection) const
-{
-    std::vector<RotationParameters> rotations;
-    // rotations.reserve(m_solver->GetChainSize());
 
-    // for (size_t b = 0; b < m_solver->GetChainSize(); ++b)
-    // {
-    //     auto rotation = rotations.emplace_back(Helpers::CalculateParameters(initialDirection, m_solver->GetBone(b).GetAxis()));
-    //     initialDirection = m_solver->GetBone(b).GetAxis();
-    // }
-    return rotations;
+Vector LightIK::GetTargetPosition()const
+{
+    return m_solver->GetTargetPosition();
 }
 
-std::vector<Quaternion> LightIK::GetRelativeRotations(Vector initialDirection) const
+real LightIK::GetBoneLength(size_t index) const
 {
-    std::vector<Quaternion> rotations(m_solver->GetChainSize());
-    // CoordinateSystem parent{glm::identity<CoordinateSystem>()};
-    // const Bone& bone    = m_solver->GetBone(0);
-
-    // CoordinateSystem local = bone.GetLocalCoordinateSystem();
-    // Matrix rotation = Helpers::CalculateTransferMatrix(parent, local);
-
-    // rotations[0] = glm::normalize(glm::quat_cast(rotation));
-    return rotations;
+    return m_solver->GetBones(0).bones[index].GetLength();
 }
 
-std::vector<Matrix> LightIK::GetRelativeRotationMatrices(Vector initialDirection) const
+Vector LightIK::GetRootPosition() const
 {
-    std::vector<Matrix> rotations(m_solver->GetChainSize());
-    // CoordinateSystem parent{glm::identity<CoordinateSystem>()};
-    // for (size_t b = 0; b < m_solver->GetChainSize(); ++b)
-    // {
-    //     const Bone& bone        = m_solver->GetBone(b);
-    //     CoordinateSystem local  = bone.GetLocalCoordinateSystem();
-    //     rotations[b] = Helpers::CalculateTransferMatrix(parent, local);
-    //     parent = local;
-    // }
-
-    return rotations;
-}
-
-std::vector<RotationParameters> LightIK::GetRelativeRotationParameters(Vector initialDirection) const
-{
-    std::vector<RotationParameters> rotations(m_solver->GetChainSize());
-    // CoordinateSystem local{glm::identity<CoordinateSystem>()};
-    // Quaternion rotation = glm::identity<Quaternion>();
-    // for (size_t b = 0; b < m_solver->GetChainSize(); ++b)
-    // {
-    //     const auto& bone = m_solver->GetBone(b);
-    //     auto params      = Helpers::CalculateParameters(local[(size_t)Axis::y], bone.GetAxis());
-    //     params.axis      = Helpers::ToLocal(local, params.axis);
-    //     rotations[b]     = params;
-    //     local            = bone.GetLocalCoordinateSystem();
-    // }
-    return rotations;
+    return m_solver->GetRootPosition();
 }
 
 }

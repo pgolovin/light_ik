@@ -3,6 +3,11 @@
 #include "light_ik/light_ik.h"
 #include "test_helpers.h"
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/norm.hpp"
+#include "glm/gtx/vector_angle.hpp"
+#include "glm/gtx/rotate_vector.hpp"
+
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -21,24 +26,24 @@ TEST(LightIKTest, movement_returns_true)
 {
     std::unique_ptr<LightIK> library = std::make_unique<LightIK>();
     library->SetRootPosition({0,0,0});
-   // library->AddBone({0,1,0});
-   // library->AddBone({0,2,0});
+    library->AddBone(1, glm::identity<Quaternion>());
+    library->AddBone(1, glm::identity<Quaternion>());
     library->SetTargetPosition({2,0,0});
  
-    //ASSERT_EQ(1, library->UpdateChainPosition());
+    ASSERT_EQ(1, library->UpdateChainPosition());
 };
 
 TEST(LightIKTest, no_movement_returns_false)
 {
     std::unique_ptr<LightIK> library = std::make_unique<LightIK>();
     library->SetRootPosition({0,0,0});
-    // library->AddBone({0,1,0});
-    // library->AddBone({0,2,0});
+    library->AddBone(1, glm::identity<Quaternion>());
+    library->AddBone(1, glm::identity<Quaternion>());
     library->SetTargetPosition({0,2,0});
  
-    //ASSERT_EQ(0, library->UpdateChainPosition());
+    ASSERT_EQ(0, library->UpdateChainPosition());
 };
-/*
+
 class LightIKCoordinateTests : public ::testing::Test
 {
 public: 
@@ -49,135 +54,167 @@ public:
 
     void SetUp() override
     {
-        DoStep({Vector{0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, {0, 1, 0}, {1.0, 4.0, 4.0}, 1);
-        m_rotations     = GetLibrary().GetRelativeRotationMatrices({0,1,0});
-        m_quaternions   = GetLibrary().GetRelativeRotations({0,1,0});
+        BuildChain({Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}});
     }
 
 protected:
-    void DoStep(const std::vector<Vector>& bones, const Vector& root, const Vector& target, size_t steps = 1)
+
+    void BuildChain(const std::vector<Vector>& chain)
     {
-        GetLibrary().SetRootPosition(root);
-        for (const auto& bone : bones)
+        m_library->SetRootPosition(chain.front());
+        Vector direction{Helpers::DefaultAxis()};
+        for (size_t i = 1; i < chain.size(); ++i)
         {
-            GetLibrary().AddBone(bone);
+            Vector axis         = chain[i] - chain[i - 1];
+            real length         = glm::length(axis);
+            axis                = glm::normalize(axis);
+            Vector rotationAxis = Helpers::Normal(direction, axis);
+            real angle          = glm::orientedAngle(direction, axis, rotationAxis);
+            m_library->AddBone(length, glm::angleAxis(angle, rotationAxis));
+            std::swap(direction, axis);
         }
-        GetLibrary().SetTargetPosition(target);
-        GetLibrary().UpdateChainPosition(steps);
-    };
+        GetLibrary().CompleteChain();
+    }
+
+    Vector ReconstructBoneChain()
+    {
+        const std::vector<Quaternion>& localRotations = GetLibrary().GetDeltaRotations();
+
+        Vector tip = GetLibrary().GetRootPosition();
+        Quaternion rotation = glm::identity<Quaternion>();
+
+        for (size_t i = 0; i < localRotations.size(); ++i)
+        {
+            rotation = localRotations[i] * rotation;
+            tip += rotation * (Helpers::DefaultAxis() * GetLibrary().GetBoneLength(i));
+        }
+
+        return tip;
+    }
 
     LightIK& GetLibrary() 
     {
         return *m_library;
     }
     
-    const std::vector<Matrix>& GetRotationMatrices() const { return m_rotations; }
-    const std::vector<Quaternion>& GetRotationQuaternions() const { return m_quaternions; }
-private:
-    std::unique_ptr<LightIK> m_library;
-    std::vector<Matrix> m_rotations;
-    std::vector<Quaternion> m_quaternions;
-};
-
-TEST_F(LightIKCoordinateTests, matrix_dual_basis_rotated_synth)
-{
-    CoordinateSystem basis = glm::identity<CoordinateSystem>();
-    CoordinateSystem target{Vector{-1, 0, 0}, Vector{0, 0, -1}, Vector{0, -1, 0}};
-    Matrix rotation = Helpers::CalculateTransferMatrix(basis, target);
-
-    ASSERT_TRUE(TestHelpers::CompareBasises(target, rotation * basis));
-}
-
-TEST_F(LightIKCoordinateTests, matrix_dual_basis_zero)
-{
-    CoordinateSystem basis = glm::identity<CoordinateSystem>();
-    auto target = GetLibrary().GetBoneLocal(0);
-    Matrix rotation = Helpers::CalculateTransferMatrix(basis, target);
-
-    ASSERT_TRUE(TestHelpers::CompareBasises(target, rotation * basis));
-}
-
-
-TEST_F(LightIKCoordinateTests, matrix_dual_basis_rotated)
-{
-    auto basis      = GetLibrary().GetBoneLocal(0);
-    auto target     = GetLibrary().GetBoneLocal(1);
-    Matrix rotation = Helpers::CalculateTransferMatrix(basis, target);
-
-    ASSERT_TRUE(TestHelpers::CompareBasises(target, rotation * basis));
-}
-
-TEST_F(LightIKCoordinateTests, matrix_axis_alignment)
-{
-    CoordinateSystem basis = glm::identity<CoordinateSystem>();
-    auto target = GetLibrary().GetBoneLocal(0);
-
-    ASSERT_TRUE(TestHelpers::CompareBasises(target, GetRotationMatrices()[0] * basis));
-}
-
-
-TEST_F(LightIKCoordinateTests, matrix_chain_alignment)
-{
-    CoordinateSystem basis = glm::identity<CoordinateSystem>();
-    auto rotations = GetRotationMatrices();
-    for (size_t i = 0; i < rotations.size(); ++i)
-    {
-        auto target = GetLibrary().GetBoneLocal(i);
-        auto test = GetRotationMatrices()[i] * basis;
-
-        ASSERT_TRUE(TestHelpers::CompareBasises(target, test)) << "failed on " << i <<"th element";
-        basis = GetLibrary().GetBoneLocal(i);
-    }
-}
-
-class LightIKBaseTests : public ::testing::Test
-{
-public: 
-    LightIKBaseTests()
-    {
-        m_library = std::make_unique<LightIK>(); 
-    }
-
-    testing::AssertionResult Simulate(const std::vector<Vector>& bones, const Vector& root, const Vector& target, size_t steps = 1)
-    {
-        GetLibrary().SetRootPosition(root);
-        for (const auto& bone : bones)
-        {
-            GetLibrary().AddBone(bone);
-        }
-        GetLibrary().SetTargetPosition(target);
-
-        GetLibrary().UpdateChainPosition(steps);
-
-        Vector result = root;
-        Vector origResult = root;
-        Vector initialBone{0,1,0};
-
-        auto rotations = m_library->GetRelativeRotations(initialBone);
-        // calculate axises directions in parent local coordinate systems
-        Quaternion rotation = glm::identity<Quaternion>();
-        for (size_t i = 0; i < bones.size(); ++i)
-        {
-            rotation    = rotation * rotations[i];
-            result      += rotation * Helpers::DefaultAxis() * (real)m_library->GetBoneLength(i);
-            std::cout << result.x << ", " << result.y << ", " << result.z << ";" << std::endl;
-        }
-
-        return TestHelpers::CompareVectors(target, result);
-    }
-
-protected:
-    LightIK& GetLibrary() 
-    {
-        return *m_library;
-    }
 private:
     std::unique_ptr<LightIK> m_library;
 };
 
-TEST_F(LightIKBaseTests, multi_bone_reach)
+TEST_F(LightIKCoordinateTests, initial_quaternions)
 {
-    ASSERT_TRUE(Simulate({Vector{0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, {0, 1, 0}, {1.0, 4.0, 4.0}, 5));
+    const auto& quaternions = GetLibrary().GetDeltaRotations();
+    std::vector<Quaternion> refRotations{
+        glm::angleAxis(-glm::pi<real>()/2.f, Vector{1,0,0}),
+        glm::angleAxis(glm::pi<real>()/2.f, Vector{1,0,0}),
+        glm::angleAxis(glm::pi<real>()/2.f, Vector{1,0,0}),
+        glm::angleAxis(-glm::pi<real>()/2.f, Vector{1,0,0}),
+        glm::identity<Quaternion>()
+    };
+    ASSERT_TRUE(TestHelpers::CompareRotations(refRotations, quaternions));
 }
-*/   
+
+TEST_F(LightIKCoordinateTests, reconstruct_static_chain)
+{
+    Vector target{0, 5, 0};
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_planar)
+{
+    Vector target{0, 4, 4};
+    GetLibrary().SetTargetPosition(target);
+
+    GetLibrary().UpdateChainPosition(1);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d)
+{
+    Vector target{1, 4, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(1);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_large)
+{
+    Vector target{4, 4, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(1);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_steps_count)
+{
+    Vector target{4, 4, 4};
+    GetLibrary().SetTargetPosition(target);
+    size_t steps = GetLibrary().UpdateChainPosition(10);
+
+    ASSERT_EQ(1, steps);
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_distant)
+{
+    Vector target{4, 6, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(1);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_FALSE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant)
+{
+    Vector target{4, 6, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(10);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant_steps)
+{
+    Vector target{4, 6, 4};
+    GetLibrary().SetTargetPosition(target);
+    size_t steps = GetLibrary().UpdateChainPosition(10);
+
+    ASSERT_LT(1, steps);
+    ASSERT_GT(10, steps);
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_unreachable)
+{
+    Vector target{4, 7, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(10);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_FALSE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_steps)
+{
+    Vector target{4, 7, 4};
+    GetLibrary().SetTargetPosition(target);
+    size_t steps = GetLibrary().UpdateChainPosition(10);
+
+    ASSERT_EQ(10, steps);
+}
+
 };

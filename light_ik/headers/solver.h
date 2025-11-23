@@ -17,7 +17,7 @@ public:
     virtual ~Solver() {};
 
     void   AddBone(real length, const Quaternion& localOrientation);
-    Bone&  GetBone(size_t index);
+    Pose&  GetBones(size_t poseIndex = 0);
     void   CompleteChain();
 
     size_t GetChainSize() const { return m_poses[m_defaultPose].bones.size();}

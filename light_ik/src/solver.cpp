@@ -49,9 +49,9 @@ void Solver::AddBone(real length, const Quaternion& orientation)
     m_joints.emplace_back(m_chainTip);
 }
 
-Bone& Solver::GetBone(size_t index)
+Pose&  Solver::GetBones(size_t poseIndex)
 {
-    return m_poses[m_defaultPose].bones[index];
+    return m_poses[poseIndex];
 }
 
 void Solver::CompleteChain()

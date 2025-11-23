@@ -15,24 +15,24 @@ public:
     ~LightIK();
 
     void Reset();
+
+    void AddBone(real length, const Quaternion& orientation);
+    // complete the rotation chain, by building global orientations of each bone
+    void CompleteChain();
+    
     void SetRootPosition(const Vector& rootPosition);
-    void AddBone(const Vector& boneEnd);
-    void AddBone(const Vector& boneEnd, const Vector& axis, real angle);
-    CoordinateSystem GetBoneLocal(size_t index) const;
-    Vector GetBoneAxis(size_t index) const;
-    float  GetBoneLength(size_t index) const;
     void SetTargetPosition(const Vector& targetPosition);
 
-    Vector GetTargetPosition() const;
-    Vector GetTipPosition() const;
-
+    // perform required number of backward/forward iteration steps
     size_t UpdateChainPosition(size_t iterrations = 1);
 
-    void GetBoneRotations(std::vector<Matrix>& rotations) const;
-    std::vector<RotationParameters> GetRotationParameters(Vector initialDirection) const;
-    std::vector<RotationParameters> GetRelativeRotationParameters(Vector initialDirection) const;
-    std::vector<Quaternion>  GetRelativeRotations(Vector initialDirection) const;
-    std::vector<Matrix> GetRelativeRotationMatrices(Vector initialDirection) const;
+    // returns quaternions - rotation of each bone in its parent bone local coordinate system
+    std::vector<Quaternion> GetDeltaRotations() const;
+
+    // functions to support tests
+    Vector GetRootPosition() const;
+    Vector GetTargetPosition() const;
+    real   GetBoneLength(size_t index) const;
 
 private:
     std::unique_ptr<Solver> m_solver;
