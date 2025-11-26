@@ -79,7 +79,7 @@ std::vector<Quaternion> LightIK::GetDeltaRotations() const
     const Quaternion* previousRotation = &dummy;
     for (auto& bone : chain)
     {
-        result.push_back(bone.GetGlobalOrientation() * glm::inverse(*previousRotation));
+        result.push_back(glm::inverse(*previousRotation) * bone.GetGlobalOrientation());
         previousRotation = &bone.GetGlobalOrientation();
     }
     

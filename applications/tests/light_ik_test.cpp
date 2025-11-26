@@ -54,7 +54,7 @@ public:
 
     void SetUp() override
     {
-        BuildChain({Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}});
+        BuildChain({GetRoot(), {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}});
     }
 
 protected:
@@ -85,7 +85,8 @@ protected:
 
         for (size_t i = 0; i < localRotations.size(); ++i)
         {
-            rotation = localRotations[i] * rotation;
+            // TODO: bug is here. first local rotation is applied to the bone, then it is rotated to a global position
+            rotation = rotation * localRotations[i];  
             tip += rotation * (Helpers::DefaultAxis() * GetLibrary().GetBoneLength(i));
         }
 
@@ -96,9 +97,15 @@ protected:
     {
         return *m_library;
     }
+
+    Vector GetRoot()
+    {
+        return Vector{0, 1, 0};
+    }
     
 private:
     std::unique_ptr<LightIK> m_library;
+    
 };
 
 TEST_F(LightIKCoordinateTests, initial_quaternions)
@@ -206,6 +213,17 @@ TEST_F(LightIKCoordinateTests, simulate_3d_unreachable)
     Vector tip = ReconstructBoneChain();
 
     ASSERT_FALSE(TestHelpers::CompareVectors(target, tip));
+}
+
+TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_direction)
+{
+    Vector target{4, 7, 4};
+    GetLibrary().SetTargetPosition(target);
+    GetLibrary().UpdateChainPosition(10);
+
+    Vector tip = ReconstructBoneChain();
+
+    ASSERT_TRUE(TestHelpers::CompareDirections(target - GetRoot(), tip - GetRoot()));
 }
 
 TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_steps)
