@@ -32,4 +32,8 @@ void Bone::SetGlobalOrientation(const Quaternion& orientation)
     m_globalOrientation = orientation;
 }
 
+void Bone::SetConstraints(Constraints && newConstraints)
+{
+    m_constraints = std::move(newConstraints);
+}
 }

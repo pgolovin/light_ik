@@ -41,6 +41,11 @@ void LightIK::CompleteChain()
     m_solver->CompleteChain();
 }
 
+void LightIK::SetConstraint(size_t boneIndex, Constraints && constraint)
+{
+    m_solver->SetConstraint(boneIndex, std::move(constraint));
+}
+
 void LightIK::SetRootPosition(const Vector& rootPosition)
 {
     m_solver->OverrideRootPosition(rootPosition);

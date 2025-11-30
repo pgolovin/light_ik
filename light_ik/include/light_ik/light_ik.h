@@ -19,6 +19,7 @@ public:
     void AddBone(real length, const Quaternion& orientation);
     // complete the rotation chain, by building global orientations of each bone
     void CompleteChain();
+    void SetConstraint(size_t boneIndex, Constraints && constrinat);
     
     void SetRootPosition(const Vector& rootPosition);
     void SetTargetPosition(const Vector& targetPosition);

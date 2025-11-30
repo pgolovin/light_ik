@@ -34,6 +34,8 @@ public:
 
     void   SetTargetPosition(const Vector& target);
     Vector GetTargetPosition() const { return m_target; }
+
+    bool   SetConstraint(size_t boneIndex, Constraints&& constraint);
     
 private:
     void                    LookAt(const Vector& initialDirection, const Vector& target);
@@ -42,19 +44,12 @@ private:
     
     void   ValidateRotationMatrix(const Matrix& rotation, const Vector& testVector) const;
 
-    Pose                m_current; // current position of bones
-    std::vector<Pose>   m_poses;   // set of predefined bone positions
-    const Bone*         m_lastBone = &m_defaultBone; // helper
+    std::vector<Pose>        m_poses;   // set of predefined bone positions
 
-    Vector              m_root      {0.f, 0.f, 0.f};
-    Vector              m_chainTip  {0.f, 0.f, 0.f};
-    Vector              m_target    {0.f, 0.f, 0.f};
-    Quaternion          m_cumulativeRotation;
-    Vector              m_testRoot  {0.f, 0.f, 0.f};
-    CoordinateSystem    m_lastCoordinateSystem;
-    
-    Quaternion          m_localOrientation;
-    std::vector<Vector> m_joints;
+    Vector                   m_target    {0.f, 0.f, 0.f};
+    Quaternion               m_cumulativeRotation;
+    Quaternion               m_localOrientation;
+    std::vector<Vector>      m_joints;
 };
 
 }

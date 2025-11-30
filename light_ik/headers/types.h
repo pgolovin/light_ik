@@ -68,6 +68,10 @@ struct Length
     real base      = 1.f;       // initial length
     real stretch   = 0.f;       // extension factor. if 0 bone has fixed length
 };
-
+    
+struct Constraints
+{
+    real flexibility = 1;
+};
 
 }

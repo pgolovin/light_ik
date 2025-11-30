@@ -26,8 +26,6 @@ Solver::Solver()
 void Solver::OverrideRootPosition(const Vector& rootPosition)
 {
     // TODO: update existing bone structure or throw an exception
-    m_root           = rootPosition;
-    m_chainTip       = m_root;
     Vector delta     = rootPosition - m_joints.front();
     for (auto& joint : m_joints)
     {
@@ -41,12 +39,24 @@ void Solver::AddBone(real length, const Quaternion& orientation)
 
     // add new bone to the chain and calculate absolute orientation of the axis
     m_localOrientation  = glm::normalize(m_localOrientation * orientation);
-    Vector axis         = m_localOrientation * Helpers::DefaultAxis();
+    Vector axis         = m_joints.back() + (m_localOrientation * Helpers::DefaultAxis() * length);
 
-    m_lastBone          = &skeleton.emplace_back(length, orientation);
+    skeleton.emplace_back(length, orientation);
     // form the new joint position
-    m_chainTip          += axis * length;
-    m_joints.emplace_back(m_chainTip);
+    m_joints.emplace_back(axis);
+}
+
+bool Solver::SetConstraint(size_t boneIndex, Constraints&& constraint)
+{
+    auto& chain = m_poses[m_defaultPose].bones;
+
+    if (boneIndex < chain.size())
+    {
+        chain[boneIndex].SetConstraints(std::move(constraint));
+        return true;
+    }
+    
+    return false;
 }
 
 Pose&  Solver::GetBones(size_t poseIndex)
@@ -97,7 +107,8 @@ void Solver::IterateFront()
         // calculate the global orientation of the bone
         Quaternion baseRotation     = rotation * chain[i].GetGlobalOrientation();
         // find the new position of the bone base joint
-        m_joints[i + 1]             = m_joints[i] + (baseRotation * Helpers::DefaultAxis()) * chain[i].GetLength();
+        Vector axis = (baseRotation * Helpers::DefaultAxis());
+        m_joints[i + 1]             = m_joints[i] + (axis * chain[i].GetLength());
         chain[i].SetGlobalOrientation(baseRotation);
     }
 }
@@ -167,9 +178,15 @@ Vector Solver::SolveBinaryJoint(Bone& bone, const Vector& root, const Vector& ti
     // update the position of the chain tip
     m_cumulativeRotation    = glm::normalize(rootRotation * m_cumulativeRotation);
 
-    Quaternion tipRotation = Helpers::CalculateRotation(currentTip, newTip);
+    // apply constraints
+    auto& constraint        = bone.GetConstraints();
+    auto tipRotationParams  = Helpers::CalculateParameters(currentTip, newTip);
+    Quaternion tipRotation  = glm::angleAxis(tipRotationParams.angle * constraint.flexibility, tipRotationParams.axis);
+    newTip                  = tipRotation * currentTip;
     
+    auto& chain = m_poses[m_defaultPose].bones;
     bone.SetRotation(tipRotation); 
+
     return (newTip * lengthTip.l + newRoot * lengthRoot.l);
 }
 
