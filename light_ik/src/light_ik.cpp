@@ -34,6 +34,7 @@ void LightIK::Reset()
 void LightIK::AddBone(real length, const Quaternion& orientation)
 {
     m_solver->AddBone(length, orientation);
+    m_relativeRotations.emplace_back(nullptr);
 }
 
 void LightIK::CompleteChain()
@@ -73,22 +74,17 @@ size_t LightIK::UpdateChainPosition(size_t iterrations)
     return iterrations;
 }
 
-std::vector<Quaternion> LightIK::GetDeltaRotations() const
+const std::vector<const Quaternion*> &LightIK::GetDeltaRotations()
 {
     const auto& chain = m_solver->GetBones().bones;
 
-    std::vector<Quaternion> result;
-    result.reserve(chain.size());
-
-    static Quaternion dummy = glm::identity<Quaternion>(); 
-    const Quaternion* previousRotation = &dummy;
+    m_relativeRotations.resize(0);
     for (auto& bone : chain)
     {
-        result.push_back(glm::inverse(*previousRotation) * bone.GetGlobalOrientation());
-        previousRotation = &bone.GetGlobalOrientation();
+        m_relativeRotations.push_back(&bone.GetRotation());
     }
     
-    return result;
+    return m_relativeRotations;
 }
 
 

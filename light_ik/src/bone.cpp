@@ -18,22 +18,24 @@ Bone::Bone(real length, const Quaternion& orientation)
     : m_rotation(orientation)
     , m_length(length, false)
 {
-    m_globalOrientation = glm::identity<Quaternion>();
+    m_globalOrientation         = glm::identity<Quaternion>();
 }
 
 void Bone::SetRotation(const Quaternion& orientation)
 {
     // rotate the bone coordinate system according to delta rotation of the bone
-    m_rotation       = orientation;
+    m_rotation                  = orientation;
 }
 
 void Bone::SetGlobalOrientation(const Quaternion& orientation)
 {
-    m_globalOrientation = orientation;
+    m_globalOrientation         = orientation;
 }
 
 void Bone::SetConstraints(Constraints && newConstraints)
 {
-    m_constraints = std::move(newConstraints);
+    m_constraints.flexibility   = newConstraints.flexibility;
+    m_constraints               = std::move(newConstraints);
 }
+
 }

@@ -28,8 +28,9 @@ TEST(LightIKTest, movement_returns_true)
     library->SetRootPosition({0,0,0});
     library->AddBone(1, glm::identity<Quaternion>());
     library->AddBone(1, glm::identity<Quaternion>());
+    library->CompleteChain();
     library->SetTargetPosition({2,0,0});
- 
+
     ASSERT_EQ(1, library->UpdateChainPosition());
 };
 
@@ -39,6 +40,7 @@ TEST(LightIKTest, no_movement_returns_false)
     library->SetRootPosition({0,0,0});
     library->AddBone(1, glm::identity<Quaternion>());
     library->AddBone(1, glm::identity<Quaternion>());
+    library->CompleteChain();
     library->SetTargetPosition({0,2,0});
  
     ASSERT_EQ(0, library->UpdateChainPosition());
@@ -78,15 +80,14 @@ protected:
 
     Vector ReconstructBoneChain()
     {
-        const std::vector<Quaternion>& localRotations = GetLibrary().GetDeltaRotations();
+        const auto& localRotations = GetLibrary().GetDeltaRotations();
 
         Vector tip = GetLibrary().GetRootPosition();
         Quaternion rotation = glm::identity<Quaternion>();
 
         for (size_t i = 0; i < localRotations.size(); ++i)
         {
-            // TODO: bug is here. first local rotation is applied to the bone, then it is rotated to a global position
-            rotation = rotation * localRotations[i];  
+            rotation = rotation * (*localRotations[i]);  
             tip += rotation * (Helpers::DefaultAxis() * GetLibrary().GetBoneLength(i));
         }
 

@@ -28,7 +28,7 @@ public:
     size_t UpdateChainPosition(size_t iterrations = 1);
 
     // returns quaternions - rotation of each bone in its parent bone local coordinate system
-    std::vector<Quaternion> GetDeltaRotations() const;
+    const std::vector<const Quaternion*> &GetDeltaRotations();
 
     // functions to support tests
     Vector GetRootPosition() const;
@@ -37,6 +37,7 @@ public:
 
 private:
     std::unique_ptr<Solver> m_solver;
+    std::vector<const Quaternion*> m_relativeRotations;
 };
 
 }

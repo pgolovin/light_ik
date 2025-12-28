@@ -72,6 +72,12 @@ struct Length
 struct Constraints
 {
     real flexibility = 1;
+    real minX = -glm::pi<real>();
+    real maxX =  glm::pi<real>();
+    real minY = -glm::pi<real>();
+    real maxY =  glm::pi<real>();
+    real minZ = -glm::pi<real>();
+    real maxZ =  glm::pi<real>();
 };
 
 }

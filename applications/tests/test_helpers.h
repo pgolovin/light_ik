@@ -53,7 +53,7 @@ public:
         return testing::AssertionSuccess();
     }
 
-    static testing::AssertionResult CompareRotations(const std::vector<Quaternion>& reference, const std::vector<Quaternion>& result)
+    static testing::AssertionResult CompareRotations(const std::vector<Quaternion>& reference, const std::vector<const Quaternion*>& result)
     {
         if (reference.size() != result.size())
         {
@@ -61,7 +61,7 @@ public:
         }
         for (size_t i = 0; i < reference.size(); ++i)
         {
-            auto check = CompareRotations(reference[i], result[i]);
+            auto check = CompareRotations(reference[i], *result[i]);
             if (!check)
             {
                 return check << " test failed at " << i << "th";

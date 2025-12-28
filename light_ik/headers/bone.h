@@ -26,12 +26,11 @@ public:
     const Constraints& GetConstraints() const       {return m_constraints;}
 
 private:
-    void CalculateRotationParameters(const Matrix& localCoordinates, const Matrix& coordinatesTransform);
+    Length          m_length;
+    Constraints     m_constraints;
 
-    Length m_length;
-    Constraints m_constraints;
-    Quaternion m_rotation;
-    Quaternion m_globalOrientation;
+    Quaternion      m_rotation;
+    Quaternion      m_globalOrientation;
 };
 
 struct Pose

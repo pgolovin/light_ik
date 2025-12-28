@@ -47,6 +47,7 @@ public:
             m_library->AddBone(length, glm::angleAxis(angle, rotationAxis));
             std::swap(direction, axis);
         }
+        m_library->CompleteChain();
     }
 
 protected:
@@ -83,6 +84,7 @@ TEST_F(SolverBaseTests, first_bone_joint_position)
 TEST_F(SolverBaseTests, first_bone_oriented_position)
 {
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 2), GetSolver().GetJoints().back()));
 }
 
@@ -90,6 +92,7 @@ TEST_F(SolverBaseTests, second_bone_position)
 {
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     GetSolver().AddBone(1, glm::identity<Quaternion>());
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 3), GetSolver().GetJoints().back()));
 }
 
@@ -97,6 +100,7 @@ TEST_F(SolverBaseTests, second_bone_oriented_position)
 {
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, -1, 2), GetSolver().GetJoints().back()));
 }
 
@@ -104,6 +108,7 @@ TEST_F(SolverBaseTests, second_bone_oriented_position_z)
 {
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 0, 2), GetSolver().GetJoints().back()));
 }
 
@@ -124,6 +129,7 @@ TEST_F(SolverBaseTests, reroot_chain_before)
     GetSolver().OverrideRootPosition({0, 1, 0});
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 1, 2), GetSolver().GetJoints().back()));
 }
 
@@ -132,6 +138,7 @@ TEST_F(SolverBaseTests, reroot_chain_after)
     GetSolver().AddBone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     GetSolver().AddBone(1, glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}));
     GetSolver().OverrideRootPosition({0, 1, 0});
+    GetSolver().CompleteChain();
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 1, 2), GetSolver().GetJoints().back()));
 }
 
@@ -466,100 +473,6 @@ TEST_F(BoneChainTest, multi_bone_reach_multistep)
     }
 
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
-}
-
-class BoneConstraintsTest : public BoneLookAtTest
-{
-};
-
-TEST_F(BoneConstraintsTest, set_constraint)
-{
-    Vector target{0, 2, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
-    Constraints constraints;
-    ASSERT_TRUE(GetSolver().SetConstraint(1, std::move(constraints)));
-}
-
-TEST_F(BoneConstraintsTest, set_constraint_wrong_bone)
-{
-    Vector target{0, 2, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
-    Constraints constraints;
-    ASSERT_FALSE(GetSolver().SetConstraint(2, std::move(constraints)));
-}
-
-TEST_F(BoneConstraintsTest, dummy_constraints)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
-    Constraints constraints;
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-
-    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
-}
-
-TEST_F(BoneConstraintsTest, simple_stiff)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
-    Constraints constraints = { 0.5 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-
-    ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
-}
-
-TEST_F(BoneConstraintsTest, simple_stiff_direction)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
-    Constraints constraints = { 0.5 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-
-    ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
-}
-
-TEST_F(BoneConstraintsTest, simple_fixed)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 0, 0}}, target);
-    Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-
-    ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
-}
-
-TEST_F(BoneConstraintsTest, simple_fixed_direction)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 0, 0}}, target);
-    Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-
-    ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
-}
-
-TEST_F(BoneConstraintsTest, fixed_preserve_angle)
-{
-    Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 1, 0}}, target);
-    Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-
-    Step();
-    const auto& bones   = GetSolver().GetBones();
-    Vector axis1        = bones.bones[0].GetGlobalOrientation() * Helpers::DefaultAxis();
-    Vector axis2        = bones.bones[1].GetGlobalOrientation() * Helpers::DefaultAxis();
-    ASSERT_NEAR(0, glm::dot(axis1, axis2), TestTolerance);
 }
 
 };

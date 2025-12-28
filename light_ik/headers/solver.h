@@ -39,16 +39,14 @@ public:
     
 private:
     void                    LookAt(const Vector& initialDirection, const Vector& target);
-    Vector                  SolveBinaryJoint(Bone& bone, const Vector& root, const Vector& tip, const Vector& target);
+    Vector                  SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
     std::pair<real, real>   CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
+    void                    ReconstructChain();
     
-    void   ValidateRotationMatrix(const Matrix& rotation, const Vector& testVector) const;
-
     std::vector<Pose>        m_poses;   // set of predefined bone positions
 
     Vector                   m_target    {0.f, 0.f, 0.f};
     Quaternion               m_cumulativeRotation;
-    Quaternion               m_localOrientation;
     std::vector<Vector>      m_joints;
 };
 

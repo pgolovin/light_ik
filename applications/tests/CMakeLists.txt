@@ -6,6 +6,7 @@ set(LIGHT_IK_TEST_HEADERS
 set(LIGHT_IK_TEST_SRC
     "main.cpp"
     "bone_test.cpp"
+    "constraints_test.cpp"
     "light_ik_test.cpp"
 )
 
