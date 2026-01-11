@@ -155,7 +155,7 @@ TEST_F(BoneFlexibilityTest, fixed_preserve_angle)
     ASSERT_NEAR(0, glm::dot(axis1, axis2), TestTolerance);
 }
 
-class BoneConstraintsTest : public BoneFlexibilityTest
+class BoneLookAtConstraintsTest : public BoneFlexibilityTest
 {
 public:
     void SetUp() override
@@ -165,25 +165,76 @@ public:
     }
 };
 
-TEST_F(BoneConstraintsTest, no_rotation)
+TEST_F(BoneLookAtConstraintsTest, free_rotation)
 {
     auto& bone = GetSolver().GetBones().bones.front();
-    Constraints constraints = { 0, 0, 0, 0, 0, 0, 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
-    Vector testVector = glm::rotateX(Helpers::DefaultAxis(), glm::pi<real>()/4);
+    Constraints constraints;
+    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSolver().SetTargetPosition(Vector{1,0,0});
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors({1, 0, 0}, GetSolver().GetTipPosition()));
 }
 
-TEST_F(BoneConstraintsTest, DISABLED_look_at_constraint)
+TEST_F(BoneLookAtConstraintsTest, no_rotation)
 {
-    
-    Constraints constraints = { 1, -glm::pi<real>()/2.f, 0, 0, 0, 0, glm::pi<real>()/2.f };
+    auto& bone = GetSolver().GetBones().bones.front();
     // the joint is fullly flexible, but rotation limits blocks it from any rotation
+    Constraints constraints = { 1, Vector{0, 0, 0}, Vector{0, 0, 0} };
     GetSolver().SetConstraint(0, std::move(constraints));
-
+    GetSolver().SetTargetPosition(Vector{1,0,0});
     Step();
 
     ASSERT_TRUE(TestHelpers::CompareVectors({0, 1, 0}, GetSolver().GetTipPosition()));
 }
 
+TEST_F(BoneLookAtConstraintsTest, one_axis_allowed)
+{
+    Constraints constraints = { 1, Vector{-glm::pi<real>(), 0, 0}, Vector{glm::pi<real>(), 0, 0} };
+    GetSolver().SetConstraint(0, std::move(constraints));
+    Vector target {0, 0, 1};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, one_axis_blocked)
+{
+    Constraints constraints = { 1, Vector{-glm::pi<real>(), -glm::pi<real>(), 0}, Vector{glm::pi<real>(), glm::pi<real>(), 0} };
+    GetSolver().SetConstraint(0, std::move(constraints));
+    Vector target {1, 0, 0};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    // TODO: think about
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0, 1, 0}), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, partially_blocked)
+{
+    Constraints constraints = { 1, Vector{-glm::pi<real>()/4, 0, 0}, Vector{glm::pi<real>()/4, 0, 0} };
+    GetSolver().SetConstraint(0, std::move(constraints));
+    Vector target {0, 0, 1};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0, 1, 1}), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, sector_allowed)
+{
+    Constraints constraints = { 1, 
+        Vector{-glm::pi<real>()/4, 0, -glm::pi<real>()/4}, 
+        Vector{ glm::pi<real>()/4, 0,  glm::pi<real>()/4} };
+    GetSolver().SetConstraint(0, std::move(constraints));
+    Vector target {1, 0, 1};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
+    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{sqrt(0.5), 0.5, 0.5}), GetSolver().GetTipPosition()));
+}
 
 };

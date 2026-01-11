@@ -18,6 +18,8 @@ public:
     static Matrix               CalculateTransferMatrix(const CoordinateSystem& base, const CoordinateSystem& target);
     static Vector               ToLocal(const CoordinateSystem& localSystem, const Vector& vector);
     static constexpr Vector     DefaultAxis() {return {0,1,0}; }
+    static Vector               ToEulerXZY(const Quaternion& q);
+    static Quaternion           FromEulerXZY(const Vector& angles);
 
     static void                 Print(const std::string& prefix, const Vector& value);
     static void                 Print(const std::string& prefix, const Quaternion& value);

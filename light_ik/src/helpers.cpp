@@ -6,6 +6,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/vector_angle.hpp"
 #include "glm/gtx/rotate_vector.hpp"
+#include "glm/gtx/euler_angles.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -101,6 +102,58 @@ namespace LightIK
         Print("line 1", value[0]);
         Print("line 2", value[1]);
         Print("line 3", value[2]);
+    }
+
+    // Calculate Tait-Bryan angles calculatation in non-standard seqence: XZY
+    //
+    // The reference GT, conversion to matrix and extraction of angles
+    // auto testMatrix = glm::mat4_cast(q);
+    // Vector ref;
+    // glm::extractEulerAngleXZY(testMatrix, ref.x, ref.z, ref.y);
+
+    Vector Helpers::ToEulerXZY(const Quaternion& q)
+    { 
+        Vector result = {0, 0, glm::asin(glm::clamp((real)(2) * (q.w * q.z - q.x * q.y), (real)-1, (real)1))};
+
+        // calculate X and Y angles
+        Vector2 params = {
+            (real)2 * (q.w * q.x + q.y * q.z),
+            q.w * q.w - q.x * q.x + q.y * q.y - q.z * q.z};
+        if (!glm::all(glm::equal(params, Vector2(0,0), EPSILON)))
+        {
+            result.x = glm::atan2(params.x, params.y);
+        }
+
+        params.x = (real)2 * (q.w * q.y + q.x * q.z);
+        params.y = q.w * q.w + q.x * q.x - q.y * q.y - q.z * q.z;
+        if (!glm::all(glm::equal(params, Vector2(0,0), EPSILON)))
+        {
+            result.y = glm::atan2(params.x, params.y);
+        }
+
+        return result;
+    }
+
+    // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
+    // 
+    // The referenced GT:
+    // Quaternion x = glm::angleAxis(angles.x, Vector{1, 0, 0});
+    // Quaternion y = glm::angleAxis(angles.y, Vector{0, 1, 0});
+    // Quaternion z = glm::angleAxis(angles.z, Vector{0, 0, 1});
+    // return ref = ((x * z) * y);
+
+    Quaternion Helpers::FromEulerXZY(const Vector& angles)
+    {
+        const Vector s = glm::sin(angles * (real)0.5);
+        const Vector c = glm::cos(angles * (real)0.5);
+        // calculate multiplication of 3 quaternions for each euler angle in sequence YXZ
+        // Q = Qx * Qz * Qy
+        return Quaternion{
+            (c.x * c.y * c.z) + (s.x * s.y * s.z),
+            (s.x * c.y * c.z) - (c.x * s.y * s.z),
+            (c.x * s.y * c.z) - (s.x * c.y * s.z),
+            (c.x * c.y * s.z) + (s.x * s.y * c.z)
+        };
     }
 
 }

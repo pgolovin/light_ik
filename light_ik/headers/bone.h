@@ -25,6 +25,8 @@ public:
     void SetConstraints(Constraints && newConstraints);
     const Constraints& GetConstraints() const       {return m_constraints;}
 
+    Quaternion ApplyConstraint(const Quaternion& rotation) const;
+
 private:
     Length          m_length;
     Constraints     m_constraints;
