@@ -237,4 +237,62 @@ TEST_F(BoneLookAtConstraintsTest, sector_allowed)
     ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{sqrt(0.5), 0.5, 0.5}), GetSolver().GetTipPosition()));
 }
 
+class BoneRotationConstraintsTest : public BoneLookAtConstraintsTest
+{
+public:
+    void SetUp() override
+    {
+        Vector target{1, 0, 0};
+        SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}, {0, 3, 0}}, target);
+    }
+};
+
+TEST_F(BoneRotationConstraintsTest, locked_bone)
+{
+    Constraints constraints = { 1, 
+        Vector{0, 0, 0}, 
+        Vector{0, 0, 0} };
+    GetSolver().SetConstraint(1, std::move(constraints));
+    Vector target {1.5, 0, 0};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
+    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneRotationConstraintsTest, locked_bone_chain)
+{
+    Constraints constraints = { 1, 
+        Vector{0, 0, 0}, 
+        Vector{0, 0, 0} };
+    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSolver().SetConstraint(2, std::move(constraints));
+    Vector target {1.5, 0, 0};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
+    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
+    ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneRotationConstraintsTest, locked_bone_chain_direction)
+{
+    Constraints constraints = { 1, 
+        Vector{0, 0, 0}, 
+        Vector{0, 0, 0} };
+    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSolver().SetConstraint(2, std::move(constraints));
+    Vector target {1.5, 0, 0};
+    GetSolver().SetTargetPosition(target);
+    Step();
+
+    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
+    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
+    ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
+}
+
+
 };

@@ -128,7 +128,7 @@ void Solver::IterateBack()
 
 Vector Solver::SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target)
 {
-    // position local coordinate system to have root bone aligned with Y axis and with target forms XoY plane.
+    // Position local coordinate system to have root bone aligned with Y axis and with target forms XoY plane.
     // Make the working plane, the plane made by 2 vectors: initial arm and vector to target
     const Vector y          = glm::normalize(root);
     const Vector z          = Helpers::Normal(y, glm::normalize(target));
@@ -136,35 +136,38 @@ Vector Solver::SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& ro
 
     Length lengthRoot(glm::length2(root));
     Length lengthTip(glm::length2(tip));
-    // calculate angles required to reach the target with current binary joint
+    // Calculate angles required to reach the target with current binary joint
     auto angles             = CalculateAngles(lengthRoot, lengthTip, {glm::dot(target, x), glm::dot(target, y)});
-    // calculate modifications for the chain root
+    // Calculate modifications for the chain root
     Quaternion rootRotation = glm::angleAxis(glm::pi<real>() / (real)2.0 - angles.first, z); 
 
-    // rotate whole chain according to root rotation to calculate relative tip rotation angle.
+    // Rotate whole chain according to root rotation to calculate relative tip rotation angle.
     Vector currentTip       = rootRotation * glm::normalize(tip);
 
+    // TODO: recalculate tip angle if constraints are applied to target the actial tip position
     real tipFullAngle       = angles.first - angles.second;
     Vector newTip           = x * glm::cos(tipFullAngle) + y * glm::sin(tipFullAngle);
 
-    // calculate full rotation of the root bone according to all available constraints
+    // Calculate full rotation of the root bone according to all available root constraints
     m_cumulativeRotation    = m_poses.front().bones[0].ApplyConstraint(glm::normalize(rootRotation * m_cumulativeRotation));
 
-    // apply constraints to rotation
+    // Apply constraints to rotation
     auto& constraint        = bone.GetConstraints();
     auto tipRotationParams  = Helpers::CalculateParameters(currentTip, newTip);
     Quaternion tipRotation  = glm::angleAxis(tipRotationParams.angle * constraint.flexibility, tipRotationParams.axis);
-    newTip                  = tipRotation * currentTip;
-    // calculate relative rotation of the current bone according to the orienation of its parent bone
-    auto parentOrientation  = m_cumulativeRotation * parent.GetGlobalOrientation();
-    auto childRotation      = tipRotation * m_cumulativeRotation * bone.GetGlobalOrientation();
     
-    childRotation = bone.ApplyConstraint(glm::inverse(parentOrientation) * childRotation);
-    // TODO: apply constraint for child
+    // Calculate relative rotation of the current bone according to the orienation of its parent bone
+    auto parentOrientation  = m_cumulativeRotation * parent.GetGlobalOrientation();
+    auto childOrientation   = m_cumulativeRotation * bone.GetGlobalOrientation();
+    
+    // Applying constraints for the child bone
+    auto childRotation = bone.ApplyConstraint(glm::inverse(parentOrientation) * tipRotation * childOrientation);
     bone.SetRotation(childRotation); 
 
-    //TODO: calculate tip according to constraints
-    // newTip                  = tipRotation * currentTip;
+    // recalculate tip rotation and target position according to constraints of the child bone
+    tipRotation             = parentOrientation * childRotation * glm::inverse(childOrientation);
+    newTip                  = tipRotation * currentTip;
+
     return (newTip * lengthTip.l + (rootRotation * y) * lengthRoot.l);
 }
 
