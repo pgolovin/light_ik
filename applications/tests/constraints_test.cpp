@@ -257,8 +257,6 @@ TEST_F(BoneRotationConstraintsTest, locked_bone)
     GetSolver().SetTargetPosition(target);
     Step();
 
-    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
-    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
 
@@ -273,8 +271,6 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain)
     GetSolver().SetTargetPosition(target);
     Step();
 
-    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
-    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
     ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
 
@@ -289,10 +285,70 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain_direction)
     GetSolver().SetTargetPosition(target);
     Step();
 
-    // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
-    // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
     ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
 }
 
+TEST_F(BoneRotationConstraintsTest, locked_bone_chain_target)
+{
+    Constraints constraints = { 1, 
+        Vector{0, 0, 0}, 
+        Vector{0, 0, 0} };
+    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSolver().SetConstraint(2, std::move(constraints));
+    Step();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector{3, 0, 0}, GetSolver().GetTipPosition()));
+}
+
+class BoneChainConstraintsTest : public BoneRotationConstraintsTest
+{
+public:
+    void SetUp() override
+    {
+        SetupChain({m_root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, Vector{});
+        Constraints constraints = { 1, 
+            Vector{0, 0, 0}, 
+            Vector{0, 0, 0} };
+        for (size_t i = 0; i < GetSolver().GetBones().bones.size() - 1; ++i)
+        {
+            GetSolver().SetConstraint(i + 1, std::move(constraints));
+        }
+        
+        GetSolver().SetTargetPosition(m_target);
+
+    }
+    const Vector& GetTarget() const {return m_target;}
+    const Vector& GetRoot() const {return m_root;}
+protected:
+    const Vector m_target{2, 4, 5};
+    const Vector m_root{0, 1, 0};
+};
+
+TEST_F(BoneChainConstraintsTest, strightening)
+{
+    Step();
+
+    ASSERT_FALSE(TestHelpers::CompareVectors(GetTarget(), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainConstraintsTest, actual_tip_position)
+{
+    Step();
+    Vector direction = glm::normalize(GetTarget() - GetRoot());
+    Vector tipPosition = direction * (real)8;
+    ASSERT_TRUE(TestHelpers::CompareVectors(GetRoot() + tipPosition, GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneChainConstraintsTest, actual_tip_position_multistep)
+{
+    for(size_t i = 0; i < 10; ++i)
+    {
+        Step();
+    }
+
+    Vector direction = glm::normalize(GetTarget() - GetRoot());
+    Vector tipPosition = direction * (real)8;
+    ASSERT_TRUE(TestHelpers::CompareVectors(GetRoot() + tipPosition, GetSolver().GetTipPosition()));
+}
 
 };
