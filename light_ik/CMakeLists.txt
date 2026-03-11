@@ -2,15 +2,18 @@
 set(HEADERS
     "headers/types.h"
     "headers/helpers.h"
-    "headers/solver.h"
     "headers/bone.h"
+    "headers/skeleton.h"
+    "headers/solver.h"
 )
 
 set(SOURCES
     "src/light_ik.cpp"    
     "src/helpers.cpp"    
+    "src/bone.cpp"
+    "src/skeleton.cpp"
     "src/solver.cpp"
-    "src/bone.cpp")
+)
 
 find_package(glm REQUIRED)
 

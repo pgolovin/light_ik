@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 #include "light_ik/light_ik.h"
 
-
 namespace LightIK
 {
 

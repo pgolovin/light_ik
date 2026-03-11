@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <memory>
 #include <glm/glm.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
@@ -22,6 +23,13 @@ struct RotationParameters
 {
     Vector axis{0,0,0};
     real angle{0.f};
+};
+
+struct BoneDesc
+{
+    Quaternion  orientation;
+    real        length = 0;
+    int         boneIndex = -1;
 };
 
 using CoordinateSystem = Matrix;

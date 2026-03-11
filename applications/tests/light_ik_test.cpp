@@ -2,6 +2,7 @@
 
 #include "light_ik/light_ik.h"
 #include "test_helpers.h"
+#include "test_body.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/norm.hpp"
@@ -19,76 +20,65 @@ namespace LightIK
 TEST(LightIKTest, can_create_library)
 {
     std::unique_ptr<LightIK> library;
-    ASSERT_NO_THROW(library = std::make_unique<LightIK>());
+    ASSERT_NO_THROW(library = std::make_unique<LightIK>(3));
 };
 
 TEST(LightIKTest, movement_returns_true)
 {
-    std::unique_ptr<LightIK> library = std::make_unique<LightIK>();
-    library->SetRootPosition({0,0,0});
-    library->AddBone(1, glm::identity<Quaternion>());
-    library->AddBone(1, glm::identity<Quaternion>());
-    library->CompleteChain();
-    library->SetTargetPosition({2,0,0});
+    std::unique_ptr<LightIK> library = std::make_unique<LightIK>(3);
+    size_t chainIndex = library->CreateIKChain({
+        BoneDesc{glm::identity<Quaternion>(), 1, 0},
+        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0);
 
-    ASSERT_EQ(1, library->UpdateChainPosition());
+    library->SetTargetPosition(chainIndex, {2,0,0});
+
+    ASSERT_EQ(1, library->UpdateChains());
 };
 
 TEST(LightIKTest, no_movement_returns_false)
 {
-    std::unique_ptr<LightIK> library = std::make_unique<LightIK>();
-    library->SetRootPosition({0,0,0});
-    library->AddBone(1, glm::identity<Quaternion>());
-    library->AddBone(1, glm::identity<Quaternion>());
-    library->CompleteChain();
-    library->SetTargetPosition({0,2,0});
+    std::unique_ptr<LightIK> library = std::make_unique<LightIK>(3);
+    size_t chainIndex = library->CreateIKChain({
+        BoneDesc{glm::identity<Quaternion>(), 1, 0},
+        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0);
+
+    library->SetTargetPosition(chainIndex, {0,2,0});
  
-    ASSERT_EQ(0, library->UpdateChainPosition());
+    ASSERT_EQ(0, library->UpdateChains());
 };
 
-class LightIKCoordinateTests : public ::testing::Test
+class LightIKCoordinateTests : public ::testing::Test, public LightIKTestBody
 {
 public: 
     LightIKCoordinateTests()
     {
-        m_library = std::make_unique<LightIK>(); 
+        m_library = std::make_unique<LightIK>(6); 
     }
 
     void SetUp() override
     {
-        BuildChain({GetRoot(), {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}});
+        BuildChain({GetRoot(), {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, 1);
     }
 
 protected:
 
-    void BuildChain(const std::vector<Vector>& chain)
+    void BuildChain(const std::vector<Vector>& chain, size_t index)
     {
-        m_library->SetRootPosition(chain.front());
-        Vector direction{Helpers::DefaultAxis()};
-        for (size_t i = 1; i < chain.size(); ++i)
-        {
-            Vector axis         = chain[i] - chain[i - 1];
-            real length         = glm::length(axis);
-            axis                = glm::normalize(axis);
-            Vector rotationAxis = Helpers::Normal(direction, axis);
-            real angle          = glm::orientedAngle(direction, axis, rotationAxis);
-            m_library->AddBone(length, glm::angleAxis(angle, rotationAxis));
-            std::swap(direction, axis);
-        }
-        GetLibrary().CompleteChain();
+        auto descriptors = ConstructDescriptors(chain);
+        GetLibrary().CreateIKChain(descriptors, index);
     }
 
     Vector ReconstructBoneChain()
     {
-        const auto& localRotations = GetLibrary().GetDeltaRotations();
+        const auto& localRotations = GetLibrary().GetDeltaRotations(0);
 
-        Vector tip = GetLibrary().GetRootPosition();
+        Vector tip = GetLibrary().GetRootPosition(0);
         Quaternion rotation = glm::identity<Quaternion>();
 
         for (size_t i = 0; i < localRotations.size(); ++i)
         {
             rotation = rotation * (*localRotations[i]);  
-            tip += rotation * (Helpers::DefaultAxis() * GetLibrary().GetBoneLength(i));
+            tip += rotation * (Helpers::DefaultAxis() * GetLibrary().GetBoneLength(i + 1));
         }
 
         return tip;
@@ -111,7 +101,7 @@ private:
 
 TEST_F(LightIKCoordinateTests, initial_quaternions)
 {
-    const auto& quaternions = GetLibrary().GetDeltaRotations();
+    const auto& quaternions = GetLibrary().GetDeltaRotations(0);
     std::vector<Quaternion> refRotations{
         glm::angleAxis(-glm::pi<real>()/2.f, Vector{1,0,0}),
         glm::angleAxis(glm::pi<real>()/2.f, Vector{1,0,0}),
@@ -133,9 +123,9 @@ TEST_F(LightIKCoordinateTests, reconstruct_static_chain)
 TEST_F(LightIKCoordinateTests, simulate_planar)
 {
     Vector target{0, 4, 4};
-    GetLibrary().SetTargetPosition(target);
+    GetLibrary().SetTargetPosition(0, target);
 
-    GetLibrary().UpdateChainPosition(1);
+    GetLibrary().UpdateChains(1);
 
     Vector tip = ReconstructBoneChain();
 
@@ -145,8 +135,8 @@ TEST_F(LightIKCoordinateTests, simulate_planar)
 TEST_F(LightIKCoordinateTests, simulate_3d)
 {
     Vector target{1, 4, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(1);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(1);
 
     Vector tip = ReconstructBoneChain();
 
@@ -156,8 +146,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d)
 TEST_F(LightIKCoordinateTests, simulate_3d_large)
 {
     Vector target{4, 4, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(1);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(1);
 
     Vector tip = ReconstructBoneChain();
 
@@ -167,8 +157,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_large)
 TEST_F(LightIKCoordinateTests, simulate_steps_count)
 {
     Vector target{4, 4, 4};
-    GetLibrary().SetTargetPosition(target);
-    size_t steps = GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    size_t steps = GetLibrary().UpdateChains(10);
 
     ASSERT_EQ(1, steps);
 }
@@ -176,8 +166,8 @@ TEST_F(LightIKCoordinateTests, simulate_steps_count)
 TEST_F(LightIKCoordinateTests, simulate_3d_distant)
 {
     Vector target{4, 6, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(1);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(1);
 
     Vector tip = ReconstructBoneChain();
 
@@ -187,8 +177,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_distant)
 TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant)
 {
     Vector target{4, 6, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(10);
 
     Vector tip = ReconstructBoneChain();
 
@@ -198,8 +188,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant)
 TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant_steps)
 {
     Vector target{4, 6, 4};
-    GetLibrary().SetTargetPosition(target);
-    size_t steps = GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    size_t steps = GetLibrary().UpdateChains(10);
 
     ASSERT_LT(1, steps);
     ASSERT_GT(10, steps);
@@ -208,8 +198,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_reach_distant_steps)
 TEST_F(LightIKCoordinateTests, simulate_3d_unreachable)
 {
     Vector target{4, 7, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(10);
 
     Vector tip = ReconstructBoneChain();
 
@@ -219,8 +209,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_unreachable)
 TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_direction)
 {
     Vector target{4, 7, 4};
-    GetLibrary().SetTargetPosition(target);
-    GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    GetLibrary().UpdateChains(10);
 
     Vector tip = ReconstructBoneChain();
 
@@ -230,8 +220,8 @@ TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_direction)
 TEST_F(LightIKCoordinateTests, simulate_3d_unreachable_steps)
 {
     Vector target{4, 7, 4};
-    GetLibrary().SetTargetPosition(target);
-    size_t steps = GetLibrary().UpdateChainPosition(10);
+    GetLibrary().SetTargetPosition(0, target);
+    size_t steps = GetLibrary().UpdateChains(10);
 
     ASSERT_EQ(10, steps);
 }

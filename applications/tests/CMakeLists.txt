@@ -1,10 +1,13 @@
 
 set(LIGHT_IK_TEST_HEADERS
     "test_helpers.h"
+    "test_body.h"
 )
 
 set(LIGHT_IK_TEST_SRC
     "main.cpp"
+    "test_body.cpp"
+    "skeleton_test.cpp"
     "bone_test.cpp"
     "constraints_test.cpp"
     "light_ik_test.cpp"

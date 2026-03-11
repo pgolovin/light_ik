@@ -14,59 +14,42 @@
 namespace LightIK
 {
 
-Solver::Solver()
+Solver::Solver(BoneSubchain&& chain)
+    : m_chain(std::move(chain))
 {
+    assert(m_chain.size());
     m_cumulativeRotation    = glm::identity<Quaternion>();
-
-    m_poses.push_back(Pose{}); // add default pose;
-    m_joints.push_back(Vector{0,0,0});
 }
 
-void Solver::OverrideRootPosition(const Vector& rootPosition)
+Vector Solver::GetRootPosition() const
 {
-    Vector delta     = rootPosition - m_joints.front();
-    for (auto& joint : m_joints)
-    {
-        joint       += rootPosition;
-    }
-}
-
-void Solver::AddBone(real length, const Quaternion& orientation)
-{
-    auto& skeleton      = m_poses[m_defaultPose].bones;
-
-    // add new bone to the chain
-    skeleton.emplace_back(length, orientation);
-    // create placeholder for the new joint
-    m_joints.emplace_back(Helpers::DefaultAxis());
+    return m_chain[0].get().GetPosition();
 }
 
 bool Solver::SetConstraint(size_t boneIndex, Constraints&& constraint)
 {
-    auto& chain = m_poses[m_defaultPose].bones;
-
-    if (boneIndex < chain.size())
+    if (boneIndex < m_chain.size())
     {
-        chain[boneIndex].SetConstraints(std::move(constraint));
+        m_chain[boneIndex].get().SetConstraints(std::move(constraint));
         return true;
     }
     
     return false;
 }
 
-Pose&  Solver::GetBones(size_t poseIndex)
+const BoneSubchain& Solver::GetChain() const
 {
-    return m_poses[poseIndex];
+    return m_chain;
 }
 
-void Solver::CompleteChain()
+void   Solver::SetTipPosition(Vector& position) 
 {
-    ReconstructChain();
+    m_tipPosition = position;
 }
 
 Vector Solver::GetTipPosition() const
 { 
-    return m_joints.back(); 
+    return m_tipPosition; 
 }
 
 void Solver::SetTargetPosition(const Vector& target)
@@ -80,34 +63,29 @@ void Solver::LookAt(const Vector& initialDirection, const Vector& target)
     if (glm::length2(target) > EPSILON)
     {
         m_cumulativeRotation = Helpers::CalculateRotation(glm::normalize(initialDirection), glm::normalize(target)) * m_cumulativeRotation;
-        m_cumulativeRotation = m_poses.front().bones[0].ApplyConstraint(m_cumulativeRotation);
+        m_cumulativeRotation = m_chain.front().get().ApplyConstraint(m_cumulativeRotation);
     }
-}
-
-void Solver::IterateFront()
-{
-    ReconstructChain();
 }
 
 void Solver::IterateBack()
 {   
     // inverse kinematics: iterative
-    auto& chain = m_poses[m_defaultPose].bones;
-    if (chain.empty())
+    if (m_chain.empty())
     {
         return;
     }
-
+    Bone& rootBone          = m_chain.front();
     // Assume distance to target is reachable
-    Vector target           = m_target - m_joints.front();
+    Vector target           = m_target - rootBone.GetPosition();
     m_cumulativeRotation    = glm::identity<Quaternion>();
 
-    Vector chainTip         = m_joints.back() - m_joints.front();
+    Bone&  chainEnd         = m_chain.back();
+    Vector chainTip         = m_tipPosition - rootBone.GetPosition();
 
-    for (size_t i = chain.size() - 1; i > 0; --i)
+    for (size_t i = m_chain.size() - 1; i > 0; --i)
     {
         // rotate the root part of the chain according to the accumulated rotations
-        Vector currentJoint = m_cumulativeRotation * (m_joints[i] - m_joints.front());
+        Vector currentJoint = m_cumulativeRotation * (m_chain[i].get().GetPosition() -  rootBone.GetPosition());
         // calculate simple joint consists of chain before and after the joint
         Vector tip = chainTip - currentJoint;
         if (glm::length2(tip) < EPSILON)
@@ -115,7 +93,7 @@ void Solver::IterateBack()
             // if arm length is equal to 0, the step cannot provide any position change, skip it;
             continue;
         }
-        chainTip = SolveBinaryJoint(chain[i], chain[i - 1], currentJoint, tip, target);
+        chainTip = SolveBinaryJoint(m_chain[i], m_chain[i - 1], currentJoint, tip, target);
     }
     
     // final step, the chain might not reach the final direction, due to joint stiffness
@@ -123,7 +101,7 @@ void Solver::IterateBack()
     LookAt(chainTip, target);
 
     // for the root joint all rotations are global
-    chain.front().SetRotation(m_cumulativeRotation * chain.front().GetGlobalOrientation());
+    rootBone.SetRotation(m_cumulativeRotation * rootBone.GetGlobalOrientation());
 }
 
 Vector Solver::SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target)
@@ -149,7 +127,7 @@ Vector Solver::SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& ro
     Vector newTip           = x * glm::cos(tipFullAngle) + y * glm::sin(tipFullAngle);
 
     // Calculate full rotation of the root bone according to all available root constraints
-    m_cumulativeRotation    = m_poses.front().bones[0].ApplyConstraint(glm::normalize(rootRotation * m_cumulativeRotation));
+    m_cumulativeRotation    = m_chain.front().get().ApplyConstraint(glm::normalize(rootRotation * m_cumulativeRotation));
 
     // Apply constraints to rotation
     auto& constraint        = bone.GetConstraints();
@@ -197,22 +175,6 @@ std::pair<real, real> Solver::CalculateAngles(const Length& root, const Length& 
     angleJoint              = glm::pi<real>() - angleJoint;
 
     return {angleRoot, angleJoint};    
-}
-
-void Solver::ReconstructChain()
-{
-    // front kinematics
-    // update global rotation of all small bones
-    auto& chain = m_poses[m_defaultPose].bones;
-    Quaternion rotation                 = glm::identity<Quaternion>();
-    for (size_t i = 0; i < chain.size(); ++i)
-    {
-        // calculate cumuilative change of orientation of the current bone
-        rotation                    = rotation * chain[i].GetRotation();
-        // find the new position of the bone base joint
-        m_joints[i + 1]             = m_joints[i] + (rotation * Helpers::DefaultAxis() * chain[i].GetLength());
-        chain[i].SetGlobalOrientation(rotation);
-    }
 }
 
 }

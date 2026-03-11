@@ -2,9 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "test_helpers.h"
-#include "../../light_ik/headers/solver.h"
-#include "../../light_ik/headers/bone.h"
-#include "../../light_ik/headers/helpers.h"
+#include "test_body.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/norm.hpp"
@@ -19,56 +17,40 @@
 namespace LightIK
 {
 
-class BoneFlexibilityTest : public ::testing::Test
+class BoneFlexibilityTest : public ::testing::Test, public LightIKTestBody
 {
 protected:
     BoneFlexibilityTest()
     {
-        m_library = std::make_unique<Solver>(); 
+        
     }
 
-    void BuildChain(const std::vector<Vector>& chain)
+    void SetupChain(const std::vector<Vector>& chain, int index, const Vector& target)
     {
-        m_library->OverrideRootPosition(chain.front());
-        Vector direction{Helpers::DefaultAxis()};
-        for (size_t i = 1; i < chain.size(); ++i)
-        {
-            Vector axis         = chain[i] - chain[i - 1];
-            real length         = glm::length(axis);
-            axis                = glm::normalize(axis);
-            Vector rotationAxis = Helpers::Normal(direction, axis);
-            real angle          = glm::orientedAngle(direction, axis, rotationAxis);
-            m_library->AddBone(length, glm::angleAxis(angle, rotationAxis));
-            std::swap(direction, axis);
-        }
-    }
-
-    void SetupChain(const std::vector<Vector>& chain, const Vector& target)
-    {
-        BuildChain(chain);
+        m_solver = &AddSolver(chain, index);
         GetSolver().SetTargetPosition(target);
-        GetSolver().CompleteChain();
+        GetSkeleton().CompleteChain(*m_solver);
     }
 
     void Step()
     {
         GetSolver().IterateBack();
-        GetSolver().IterateFront();
+        GetSkeleton().CompleteChain(*m_solver);
     }
 
 protected:
     Solver& GetSolver() 
     {
-        return *m_library;
+        return *m_solver;
     }
 private:
-    std::unique_ptr<Solver> m_library;
+    Solver* m_solver;
 };
 
 TEST_F(BoneFlexibilityTest, set_constraint)
 {
     Vector target{0, 2, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
     ASSERT_TRUE(GetSolver().SetConstraint(1, std::move(constraints)));
 }
@@ -76,7 +58,7 @@ TEST_F(BoneFlexibilityTest, set_constraint)
 TEST_F(BoneFlexibilityTest, set_constraint_wrong_bone)
 {
     Vector target{0, 2, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
     ASSERT_FALSE(GetSolver().SetConstraint(2, std::move(constraints)));
 }
@@ -84,7 +66,7 @@ TEST_F(BoneFlexibilityTest, set_constraint_wrong_bone)
 TEST_F(BoneFlexibilityTest, dummy_constraints)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
     GetSolver().SetConstraint(1, std::move(constraints));
 
@@ -96,7 +78,7 @@ TEST_F(BoneFlexibilityTest, dummy_constraints)
 TEST_F(BoneFlexibilityTest, simple_stiff)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints = { 0.5 };
     GetSolver().SetConstraint(1, std::move(constraints));
 
@@ -108,7 +90,7 @@ TEST_F(BoneFlexibilityTest, simple_stiff)
 TEST_F(BoneFlexibilityTest, simple_stiff_direction)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints = { 0.5 };
     GetSolver().SetConstraint(1, std::move(constraints));
 
@@ -120,7 +102,7 @@ TEST_F(BoneFlexibilityTest, simple_stiff_direction)
 TEST_F(BoneFlexibilityTest, simple_fixed)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 0, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
     Constraints constraints = { 0 };
     GetSolver().SetConstraint(1, std::move(constraints));
 
@@ -132,7 +114,7 @@ TEST_F(BoneFlexibilityTest, simple_fixed)
 TEST_F(BoneFlexibilityTest, simple_fixed_direction)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 0, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
     Constraints constraints = { 0 };
     GetSolver().SetConstraint(1, std::move(constraints));
 
@@ -144,14 +126,15 @@ TEST_F(BoneFlexibilityTest, simple_fixed_direction)
 TEST_F(BoneFlexibilityTest, fixed_preserve_angle)
 {
     Vector target{0, 1.5, 0};
-    SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {1, 1, 0}}, target);
+    SetupChain({Vector{0, 1, 0}, {1, 1, 0}}, 0, target);
     Constraints constraints = { 0 };
     GetSolver().SetConstraint(1, std::move(constraints));
 
     Step();
-    const auto& bones   = GetSolver().GetBones();
-    Vector axis1        = bones.bones[0].GetGlobalOrientation() * Helpers::DefaultAxis();
-    Vector axis2        = bones.bones[1].GetGlobalOrientation() * Helpers::DefaultAxis();
+    const auto& bones   = GetSolver().GetChain();
+    ASSERT_NE(0, bones.size());
+    Vector axis1        = bones[0].get().GetGlobalOrientation() * Helpers::DefaultAxis();
+    Vector axis2        = bones[1].get().GetGlobalOrientation() * Helpers::DefaultAxis();
     ASSERT_NEAR(0, glm::dot(axis1, axis2), TestTolerance);
 }
 
@@ -161,13 +144,16 @@ public:
     void SetUp() override
     {
         Vector target{1, 0, 0};
-        SetupChain({Vector{0, 0, 0}, {0, 1, 0}}, target);
+        SetupChain({Vector{0, 1, 0}}, 0, target);
     }
 };
 
 TEST_F(BoneLookAtConstraintsTest, free_rotation)
 {
-    auto& bone = GetSolver().GetBones().bones.front();
+    //FIXME
+    ASSERT_FALSE(GetSolver().GetChain().empty());
+
+    Bone& bone = GetSolver().GetChain().front();
     Constraints constraints;
     GetSolver().SetConstraint(0, std::move(constraints));
     GetSolver().SetTargetPosition(Vector{1,0,0});
@@ -178,7 +164,10 @@ TEST_F(BoneLookAtConstraintsTest, free_rotation)
 
 TEST_F(BoneLookAtConstraintsTest, no_rotation)
 {
-    auto& bone = GetSolver().GetBones().bones.front();
+    //FIXME
+    ASSERT_FALSE(GetSolver().GetChain().empty());
+    
+    Bone& bone = GetSolver().GetChain().front();
     // the joint is fullly flexible, but rotation limits blocks it from any rotation
     Constraints constraints = { 1, Vector{0, 0, 0}, Vector{0, 0, 0} };
     GetSolver().SetConstraint(0, std::move(constraints));
@@ -243,7 +232,7 @@ public:
     void SetUp() override
     {
         Vector target{1, 0, 0};
-        SetupChain({Vector{0, 0, 0}, {0, 1, 0}, {0, 2, 0}, {0, 3, 0}}, target);
+        SetupChain({Vector{0, 1, 0}, {0, 2, 0}, {0, 3, 0}}, 0, target);
     }
 };
 
@@ -305,11 +294,15 @@ class BoneChainConstraintsTest : public BoneRotationConstraintsTest
 public:
     void SetUp() override
     {
-        SetupChain({m_root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, Vector{});
+        SetupChain({m_root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, 1, Vector{});
         Constraints constraints = { 1, 
             Vector{0, 0, 0}, 
             Vector{0, 0, 0} };
-        for (size_t i = 0; i < GetSolver().GetBones().bones.size() - 1; ++i)
+            
+        //FIXME
+        ASSERT_FALSE(GetSolver().GetChain().empty());
+
+        for (size_t i = 0; i < GetSolver().GetChain().size() - 1; ++i)
         {
             GetSolver().SetConstraint(i + 1, std::move(constraints));
         }
