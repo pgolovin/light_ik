@@ -29,13 +29,12 @@ protected:
     {
         m_solver = &AddSolver(chain, index);
         GetSolver().SetTargetPosition(target);
-        GetSkeleton().CompleteChain(*m_solver);
     }
 
-    void Step()
+    void Step(size_t iterations)
     {
-        GetSolver().IterateBack();
-        GetSkeleton().CompleteChain(*m_solver);
+        GetSkeleton().UpdateChains(iterations);
+        GetSkeleton().FinalizeChains();
     }
 
 protected:
@@ -52,7 +51,7 @@ TEST_F(BoneFlexibilityTest, set_constraint)
     Vector target{0, 2, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
-    ASSERT_TRUE(GetSolver().SetConstraint(1, std::move(constraints)));
+    ASSERT_TRUE(GetSkeleton().SetConstraint(1, std::move(constraints)));
 }
 
 TEST_F(BoneFlexibilityTest, set_constraint_wrong_bone)
@@ -60,7 +59,7 @@ TEST_F(BoneFlexibilityTest, set_constraint_wrong_bone)
     Vector target{0, 2, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
-    ASSERT_FALSE(GetSolver().SetConstraint(2, std::move(constraints)));
+    ASSERT_FALSE(GetSkeleton().SetConstraint(2, std::move(constraints)));
 }
 
 TEST_F(BoneFlexibilityTest, dummy_constraints)
@@ -68,9 +67,9 @@ TEST_F(BoneFlexibilityTest, dummy_constraints)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints;
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -80,9 +79,9 @@ TEST_F(BoneFlexibilityTest, simple_stiff)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints = { 0.5 };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
 
     ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -92,9 +91,9 @@ TEST_F(BoneFlexibilityTest, simple_stiff_direction)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
     Constraints constraints = { 0.5 };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
 }
@@ -104,9 +103,9 @@ TEST_F(BoneFlexibilityTest, simple_fixed)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
     Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
 
     ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -116,9 +115,9 @@ TEST_F(BoneFlexibilityTest, simple_fixed_direction)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
     Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
 }
@@ -128,9 +127,9 @@ TEST_F(BoneFlexibilityTest, fixed_preserve_angle)
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 1, 0}}, 0, target);
     Constraints constraints = { 0 };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
 
-    Step();
+    Step(1);
     const auto& bones   = GetSolver().GetChain();
     ASSERT_NE(0, bones.size());
     Vector axis1        = bones[0].get().GetGlobalOrientation() * Helpers::DefaultAxis();
@@ -155,9 +154,9 @@ TEST_F(BoneLookAtConstraintsTest, free_rotation)
 
     Bone& bone = GetSolver().GetChain().front();
     Constraints constraints;
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     GetSolver().SetTargetPosition(Vector{1,0,0});
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors({1, 0, 0}, GetSolver().GetTipPosition()));
 }
@@ -170,9 +169,9 @@ TEST_F(BoneLookAtConstraintsTest, no_rotation)
     Bone& bone = GetSolver().GetChain().front();
     // the joint is fullly flexible, but rotation limits blocks it from any rotation
     Constraints constraints = { 1, Vector{0, 0, 0}, Vector{0, 0, 0} };
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     GetSolver().SetTargetPosition(Vector{1,0,0});
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors({0, 1, 0}, GetSolver().GetTipPosition()));
 }
@@ -180,10 +179,10 @@ TEST_F(BoneLookAtConstraintsTest, no_rotation)
 TEST_F(BoneLookAtConstraintsTest, one_axis_allowed)
 {
     Constraints constraints = { 1, Vector{-glm::pi<real>(), 0, 0}, Vector{glm::pi<real>(), 0, 0} };
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {0, 0, 1};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -191,10 +190,10 @@ TEST_F(BoneLookAtConstraintsTest, one_axis_allowed)
 TEST_F(BoneLookAtConstraintsTest, one_axis_blocked)
 {
     Constraints constraints = { 1, Vector{-glm::pi<real>(), -glm::pi<real>(), 0}, Vector{glm::pi<real>(), glm::pi<real>(), 0} };
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 0};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     // TODO: think about
     ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0, 1, 0}), GetSolver().GetTipPosition()));
@@ -203,10 +202,10 @@ TEST_F(BoneLookAtConstraintsTest, one_axis_blocked)
 TEST_F(BoneLookAtConstraintsTest, partially_blocked)
 {
     Constraints constraints = { 1, Vector{-glm::pi<real>()/4, 0, 0}, Vector{glm::pi<real>()/4, 0, 0} };
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {0, 0, 1};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0, 1, 1}), GetSolver().GetTipPosition()));
 }
@@ -216,10 +215,10 @@ TEST_F(BoneLookAtConstraintsTest, sector_allowed)
     Constraints constraints = { 1, 
         Vector{-glm::pi<real>()/4, 0, -glm::pi<real>()/4}, 
         Vector{ glm::pi<real>()/4, 0,  glm::pi<real>()/4} };
-    GetSolver().SetConstraint(0, std::move(constraints));
+    GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
     // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
@@ -241,10 +240,10 @@ TEST_F(BoneRotationConstraintsTest, locked_bone)
     Constraints constraints = { 1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
-    GetSolver().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
     Vector target {1.5, 0, 0};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -254,11 +253,11 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain)
     Constraints constraints = { 1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
-    GetSolver().SetConstraint(1, std::move(constraints));
-    GetSolver().SetConstraint(2, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(2, std::move(constraints));
     Vector target {1.5, 0, 0};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     ASSERT_FALSE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }
@@ -268,11 +267,11 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain_direction)
     Constraints constraints = { 1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
-    GetSolver().SetConstraint(1, std::move(constraints));
-    GetSolver().SetConstraint(2, std::move(constraints));
+    GetSkeleton().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(2, std::move(constraints));
     Vector target {1.5, 0, 0};
     GetSolver().SetTargetPosition(target);
-    Step();
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareDirections(target, GetSolver().GetTipPosition()));
 }
@@ -282,9 +281,9 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain_target)
     Constraints constraints = { 1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
-    GetSolver().SetConstraint(1, std::move(constraints));
-    GetSolver().SetConstraint(2, std::move(constraints));
-    Step();
+    GetSkeleton().SetConstraint(1, std::move(constraints));
+    GetSkeleton().SetConstraint(2, std::move(constraints));
+    Step(1);
 
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector{3, 0, 0}, GetSolver().GetTipPosition()));
 }
@@ -304,7 +303,8 @@ public:
 
         for (size_t i = 0; i < GetSolver().GetChain().size() - 1; ++i)
         {
-            GetSolver().SetConstraint(i + 1, std::move(constraints));
+            // TODO: with skeleton is not working
+            ASSERT_TRUE(GetSolver().SetConstraint(i + 1, std::move(constraints)));
         }
         
         GetSolver().SetTargetPosition(m_target);
@@ -319,14 +319,14 @@ protected:
 
 TEST_F(BoneChainConstraintsTest, strightening)
 {
-    Step();
+    Step(1);
 
     ASSERT_FALSE(TestHelpers::CompareVectors(GetTarget(), GetSolver().GetTipPosition()));
 }
 
 TEST_F(BoneChainConstraintsTest, actual_tip_position)
 {
-    Step();
+    Step(1);
     Vector direction = glm::normalize(GetTarget() - GetRoot());
     Vector tipPosition = direction * (real)8;
     ASSERT_TRUE(TestHelpers::CompareVectors(GetRoot() + tipPosition, GetSolver().GetTipPosition()));
@@ -334,10 +334,7 @@ TEST_F(BoneChainConstraintsTest, actual_tip_position)
 
 TEST_F(BoneChainConstraintsTest, actual_tip_position_multistep)
 {
-    for(size_t i = 0; i < 10; ++i)
-    {
-        Step();
-    }
+    Step(10);
 
     Vector direction = glm::normalize(GetTarget() - GetRoot());
     Vector tipPosition = direction * (real)8;

@@ -33,7 +33,7 @@ public:
     void SetTargetPosition(size_t chainIndex, const Vector& targetPosition);
 
     // perform required number of backward/forward iteration steps
-    size_t UpdateChains(size_t iterrations = 1);
+    size_t UpdateChains(size_t iterations = 1);
 
     void AddBone(real length, const Quaternion& orientation);
     // complete the rotation chain, by building global orientations of each bone

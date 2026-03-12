@@ -15,12 +15,11 @@ class Solver
     const Bone   m_defaultBone{};
 public:
     Solver(BoneSubchain&& chain);
-    virtual ~Solver() {};
+    virtual ~Solver() = default;
 
-    
     const BoneSubchain& GetChain() const;
 
-    size_t GetChainSize() const { return m_chain.size();}
+    size_t GetChainSize() const                     { return m_chain.size();}
 
     void   SetTipPosition(Vector& position);
     Vector GetTipPosition() const;
@@ -30,9 +29,12 @@ public:
     Vector GetRootPosition() const;
 
     void   SetTargetPosition(const Vector& target);
-    Vector GetTargetPosition() const { return m_target; }
+    Vector GetTargetPosition() const                { return m_target; }
 
     bool   SetConstraint(size_t boneIndex, Constraints&& constraint);
+
+    void   SetDependencies(bool hasDependencies = true) { m_hasDependencies = hasDependencies;}
+    bool   HasDependencies() const                  { return m_hasDependencies;}
     
 private:
     void                    LookAt(const Vector& initialDirection, const Vector& target);
@@ -43,6 +45,7 @@ private:
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
     Vector                  m_target      {0.f, 0.f, 0.f};
     Quaternion              m_cumulativeRotation;
+    bool                    m_hasDependencies = false;
 };
 
 using SolverPtr = std::unique_ptr<Solver>;

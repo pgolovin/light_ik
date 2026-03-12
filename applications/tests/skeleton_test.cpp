@@ -72,9 +72,9 @@ TEST_F(SkeletonBaseTest, partial_ik_chain)
 {
     Solver& solver = AddSolver({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}}, 1);
     auto& chain = GetSkeleton().GetRootChain(solver);
-    ASSERT_FALSE(chain[0].get().IsInChain());
-    ASSERT_TRUE(chain[1].get().IsInChain());
-    ASSERT_TRUE(chain[2].get().IsInChain());
+    ASSERT_FALSE(chain[0].get().GetOwner());
+    ASSERT_TRUE(chain[1].get().GetOwner());
+    ASSERT_TRUE(chain[2].get().GetOwner());
 }
 
 TEST_F(SkeletonBaseTest, add_second_chain)
@@ -108,7 +108,7 @@ TEST_F(SkeletonBaseTest, one_bone_chain_size)
 TEST_F(SkeletonBaseTest, construct_chain)
 {
     Solver& solver = GetSkeleton().AddSolver({BoneDesc{glm::identity<Quaternion>(), 1.f, 1}}, 0);
-    ASSERT_NO_THROW(GetSkeleton().CompleteChain(solver));
+    ASSERT_NO_THROW(GetSkeleton().UpdateChains(1));
 }
 
 TEST_F(SkeletonBaseTest, bone_positions)
@@ -116,7 +116,7 @@ TEST_F(SkeletonBaseTest, bone_positions)
     std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
     Solver& solver = AddSolver(chain, 0);
 
-    GetSkeleton().CompleteChain(solver);
+    GetSkeleton().UpdateChains(1);
     const auto& rootChain = GetSkeleton().GetRootChain(solver);
 
     for(size_t i = 0; i < chain.size() - 1; ++i)
@@ -129,7 +129,7 @@ TEST_F(SkeletonBaseTest, bone_positions)
 TEST_F(SkeletonBaseTest, tip_oriented_position)
 {
     Solver& solver = GetSkeleton().AddSolver({BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 1}}, 0);
-    GetSkeleton().CompleteChain(solver);
+    GetSkeleton().UpdateChains(1);
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 2), solver.GetTipPosition()));
 }
 
@@ -140,7 +140,7 @@ TEST_F(SkeletonBaseTest, two_bone_chain)
         BoneDesc{ glm::identity<Quaternion>(), 1.f, 1}
     }, 0);
 
-    GetSkeleton().CompleteChain(solver);
+    GetSkeleton().UpdateChains(1);
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, 0, 3), solver.GetTipPosition()));
 }
 
@@ -151,7 +151,7 @@ TEST_F(SkeletonBaseTest, two_bone_chain_oriented)
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 1.f, 1}
     }, 0);
 
-    GetSkeleton().CompleteChain(solver);
+    GetSkeleton().UpdateChains(1);
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(0, -1, 2), solver.GetTipPosition()));
 }
 
@@ -162,7 +162,7 @@ TEST_F(SkeletonBaseTest, two_bone_chain_oriented_3D)
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{0,0,1}), 1.f, 1}
     }, 0);
 
-    GetSkeleton().CompleteChain(solver);
+    GetSkeleton().UpdateChains(1);
     ASSERT_TRUE(TestHelpers::CompareVectors(Vector(-1, 0, 2), solver.GetTipPosition()));
 }
 

@@ -3,6 +3,7 @@
 *******************************************************************/
 
 #include "bone.h"
+#include "solver.h"
 #include "helpers.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -14,11 +15,9 @@
 namespace LightIK
 {
 
-Bone::Bone(int chainIndex, bool isChained, real length, const Quaternion& orientation)
+Bone::Bone(real length, const Quaternion& orientation)
     : m_rotation(orientation)
     , m_length(length, false)
-    , m_index(chainIndex)
-    , m_inChain(isChained)
 {
     m_globalOrientation         = glm::identity<Quaternion>();
 }

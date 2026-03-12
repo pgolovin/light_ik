@@ -37,7 +37,7 @@ size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int ch
 
     auto& solver = m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex));
     // TODO: the chain must be formed automatically after creation
-    m_skeleton->CompleteChain(solver);
+    //m_skeleton->UpdateChains(solver);
 
     return index;
 }
@@ -70,26 +70,9 @@ void LightIK::SetTargetPosition(size_t chainIndex, const Vector& targetPosition)
     m_solvers[chainIndex].get().SetTargetPosition(targetPosition);
 }
 
-size_t LightIK::UpdateChains(size_t iterrations)
+size_t LightIK::UpdateChains(size_t iterations)
 {
-    size_t count = iterrations;
-    for (Solver& solver : m_solvers)
-    {
-        for (size_t i = 0; i < iterrations; ++i)
-        {
-            // break the loop if target reached
-            if (glm::length2(solver.GetTipPosition() - solver.GetTargetPosition()) < EPSILON)
-            {
-                // return false if no iterations were done
-                count = std::min(count, i);
-                break;
-            }
-            // calculate new rotation of the bone chains
-            solver.IterateBack();
-            m_skeleton->CompleteChain(solver);
-        }
-    }
-    return count;
+    return m_skeleton->UpdateChains(iterations);
 }
 
 const std::vector<const Quaternion*> &LightIK::GetDeltaRotations(size_t chainIndex)

@@ -35,14 +35,17 @@ Solver& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t start
     for (size_t i = rootChain.size(); i != 0; --i)
     {
         size_t index = i - 1;
-        Bone& newBone = AddBone(rootChain[index], chainIndex, inChain);
+        Bone& newBone = AddBone(rootChain[index]);
         newChain.emplace_back(std::ref(newBone));
         // verify that bone is still in chain and not a part of any existing chain
         // if it is, and current bone is not a part of IK chain, then the local root bone found
-        if (newBone.GetIndex() != chainIndex && !inChain)
+        if (!inChain && newBone.GetOwner() != nullptr)
         {
+            // mark the owner of the bone that it has dependencies
+            newBone.GetOwner()->SetDependencies();
             break;
         }
+
         if (inChain)
         {
             solverChain.emplace_back(std::ref(newBone));
@@ -58,6 +61,8 @@ Solver& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t start
     // reverse chain into stright direction
     std::reverse(newChain.begin(), newChain.end());
     std::reverse(solverChain.begin(), solverChain.end());
+
+    CalculateBonePositions(newChain);
     
     return *m_solvers.emplace_back(std::make_unique<Solver>(std::move(solverChain)));
 }
@@ -70,7 +75,7 @@ void Skeleton::RemoveSolver(const Solver& solver)
     m_chains[index].clear();
 }
 
-void Skeleton::SetConstraint(int boneIndex, Constraints && constraint)
+bool Skeleton::SetConstraint(int boneIndex, Constraints && constraint)
 {
     assert(boneIndex < m_bones.size());
 
@@ -78,6 +83,47 @@ void Skeleton::SetConstraint(int boneIndex, Constraints && constraint)
     if (bone)
     {
         bone->SetConstraints(std::move(constraint));
+    }
+    return bone;
+}
+
+size_t Skeleton::UpdateChains(size_t iterations)
+{
+    size_t count = iterations;
+    for (size_t c = 0; c < m_chains.size(); ++c)
+    {
+        Solver& solver      = *m_solvers[c];
+        BoneSubchain& chain = m_chains[c];
+        // do the iterrations untill tip and target will be in the same position
+        for(size_t i = 0; i < iterations; ++i)
+        {
+            Vector tip = CalculateBonePositions(chain);
+            solver.SetTipPosition(tip);
+
+            if (glm::length2(tip - solver.GetTargetPosition()) < EPSILON)
+            {
+                // return false if no iterations were done
+                count = std::min(count, i);
+                break;
+            }
+
+            solver.IterateBack();
+        }
+        if (solver.HasDependencies())
+        {
+            Vector tip = CalculateBonePositions(chain);
+            solver.SetTipPosition(tip);
+        }
+    }
+    return count;
+}
+
+void Skeleton::FinalizeChains()
+{
+    for (size_t c = 0; c < m_chains.size(); ++c)
+    {
+        Vector tip = CalculateBonePositions(m_chains[c]);
+        m_solvers[c]->SetTipPosition(tip);
     }
 }
 
@@ -94,33 +140,15 @@ const std::vector<BoneRef>& Skeleton::GetRootChain(const Solver& solver) const
     return m_chains[index]; 
 }
 
-void Skeleton::CompleteChain(Solver& solver)
-{
-    // Get the chain that needs to be pocessed
-    size_t index = FindChainIndex(solver);
-    auto& chain = m_chains[index];
+// void Skeleton::CompleteChain(Solver& solver)
+// {
+//     // Get the chain that needs to be pocessed
+//     size_t index = FindChainIndex(solver);
 
-    // Chain must have at least one bone
-    assert(chain.size() > 0);
-
-    // Front kinematics: separated from the solver to make the functionality common and independent from any solvers 
-    // Front kinematic always calculated from the chain root position - the bone that either root of overall skeleton,
-    //  or bone of the parent IK chain
-    Quaternion rotation                 = glm::identity<Quaternion>();
-    Vector position                     = chain[0].get().GetPosition();
-
-    for (size_t i = 0; i < chain.size(); ++i)
-    {
-        chain[i].get().SetPosition(position);
-        // Calculate cumuilative change of orientation of the current bone
-        rotation                        = rotation * chain[i].get().GetRotation();
-        chain[i].get().SetGlobalOrientation(rotation);
-        // Find the new position of the bone base joint
-        position                        = position + (rotation * Helpers::DefaultAxis() * chain[i].get().GetLength());
-    }
-    // provide the tip position of the current chain
-    solver.SetTipPosition(position);
-}
+//     Vector tipPosition = CalculateBonePositions(m_chains[index]);
+//     // provide the tip position of the current chain
+//     solver.SetTipPosition(tipPosition);
+// }
 
 size_t Skeleton::FindChainIndex(const Solver& solver) const
 {
@@ -136,7 +164,7 @@ size_t Skeleton::FindChainIndex(const Solver& solver) const
     return -1LLU;
 }
 
-Bone& Skeleton::AddBone(const BoneDesc& description, int chainIndex, bool inChain)
+Bone& Skeleton::AddBone(const BoneDesc& description)
 {
     // add new bone to the chain
     assert (m_bones.size() > description.boneIndex);
@@ -145,10 +173,32 @@ Bone& Skeleton::AddBone(const BoneDesc& description, int chainIndex, bool inChai
     // if bone already exists, return the existing bone, otherwise create a new bone and attach it to current chain
     if (!bone)
     {
-        bone = std::make_unique<Bone>(chainIndex, inChain, description.length, description.orientation);
+        bone = std::make_unique<Bone>(description.length, description.orientation);
     }
         
     return *bone;
+}
+
+Vector Skeleton::CalculateBonePositions(BoneSubchain& chain)
+{   
+    // Chain must have at least one bone
+    assert(chain.size() > 0);
+    // Front kinematics: separated from the solver to make the functionality common and independent from any solvers 
+    // Front kinematic always calculated from the chain root position - the bone that either root of overall skeleton,
+    //  or bone of the parent IK chain
+    Quaternion rotation                 = glm::identity<Quaternion>();
+    Vector position                     = chain[0].get().GetPosition();
+
+    for (size_t i = 0; i < chain.size(); ++i)
+    {
+        chain[i].get().SetPosition(position);
+        // Calculate cumuilative change of orientation of the current bone
+        rotation                        = rotation * chain[i].get().GetRotation();
+        chain[i].get().SetGlobalOrientation(rotation);
+        // Find the new position of the bone base joint
+        position                        = position + (rotation * Helpers::DefaultAxis() * chain[i].get().GetLength());
+    }
+    return position;
 }
 
 }

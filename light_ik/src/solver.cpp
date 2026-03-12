@@ -19,6 +19,12 @@ Solver::Solver(BoneSubchain&& chain)
 {
     assert(m_chain.size());
     m_cumulativeRotation    = glm::identity<Quaternion>();
+    
+    // assign owner for each bone in the chain
+    for (auto& bone : m_chain)
+    {
+        bone.get().SetOwner(this);
+    }
 }
 
 Vector Solver::GetRootPosition() const
