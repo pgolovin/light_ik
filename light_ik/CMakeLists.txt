@@ -4,7 +4,10 @@ set(HEADERS
     "headers/helpers.h"
     "headers/bone.h"
     "headers/skeleton.h"
+    "headers/target.h"
+    "headers/solver_base.h"
     "headers/solver.h"
+    "headers/solver_passive.h"
 )
 
 set(SOURCES
@@ -13,6 +16,7 @@ set(SOURCES
     "src/bone.cpp"
     "src/skeleton.cpp"
     "src/solver.cpp"
+    "src/target.cpp"
 )
 
 find_package(glm REQUIRED)

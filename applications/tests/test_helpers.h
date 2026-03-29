@@ -10,15 +10,15 @@ static const real TestTolerance     = 1e-7;
 class TestHelpers
 {
 public:
-    static testing::AssertionResult CompareVectors(const Vector& reference, const Vector& result)
+    static testing::AssertionResult CompareVectors(const Vector& reference, const Vector& result, float epsilon = TestTolerance)
     {
         if (isnan(result.x) || isnan(result.y) || isnan(result.z))
         {
             return testing::AssertionFailure() << "Result is invalid (" << result.x << ", " << result.y << ", " << result.z << ")";
         }
-        else if (glm::abs(glm::abs(result.x - reference.x)) > TestTolerance
-            || glm::abs(glm::abs(result.y - reference.y)) > TestTolerance
-            || glm::abs(glm::abs(result.z - reference.z)) > TestTolerance )
+        else if (glm::abs(glm::abs(result.x - reference.x)) > epsilon
+            || glm::abs(glm::abs(result.y - reference.y))   > epsilon
+            || glm::abs(glm::abs(result.z - reference.z))   > epsilon )
         {
             return testing::AssertionFailure() << "Result mismatch. Expected (" 
                 << (float)reference.x << ", " << (float)reference.y << ", " << (float)reference.z 

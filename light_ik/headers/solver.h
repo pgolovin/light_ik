@@ -1,6 +1,8 @@
 #pragma once
 #include "types.h"
+#include "target.h"
 #include "bone.h"
+#include "solver_base.h"
 
 #include <vector>
 #include <utility>
@@ -9,46 +11,42 @@
 namespace LightIK
 {
 
-class Solver
+// Solver class
+class Solver final : public SolverBase
 {
     const size_t m_defaultPose = 0;
     const Bone   m_defaultBone{};
 public:
-    Solver(BoneSubchain&& chain);
+    Solver(BoneSubchain&& chain, Target& target, const Bone& baseBone);
     virtual ~Solver() = default;
 
     const BoneSubchain& GetChain() const;
 
-    size_t GetChainSize() const                     { return m_chain.size();}
+    size_t GetChainSize() const                             { return m_chain.size();}
 
-    void   SetTipPosition(Vector& position);
+    void   SetTipPosition(Vector& position) override;
     Vector GetTipPosition() const;
 
-    void   IterateBack();
-
     Vector GetRootPosition() const;
+    const Bone& GetBaseBone() const override                { return m_baseBone; }
 
-    void   SetTargetPosition(const Vector& target);
-    Vector GetTargetPosition() const                { return m_target; }
+    void   SetDependencies(bool hasDependencies) override   { m_hasDependencies = hasDependencies;}
+    bool   HasDependencies() const override                 { return m_hasDependencies;}
 
-    bool   SetConstraint(size_t boneIndex, Constraints&& constraint);
-
-    void   SetDependencies(bool hasDependencies = true) { m_hasDependencies = hasDependencies;}
-    bool   HasDependencies() const                  { return m_hasDependencies;}
+    bool   TargetReached() const override;
+    void   Execute() override;
     
 private:
     void                    LookAt(const Vector& initialDirection, const Vector& target);
     Vector                  SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
     std::pair<real, real>   CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
     
+    const Bone&             m_baseBone;
     BoneSubchain            m_chain;   // bones chain
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
-    Vector                  m_target      {0.f, 0.f, 0.f};
+    Target&                 m_target;
     Quaternion              m_cumulativeRotation;
     bool                    m_hasDependencies = false;
 };
-
-using SolverPtr = std::unique_ptr<Solver>;
-using SolverRef = std::reference_wrapper<Solver>;
 
 }

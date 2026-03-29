@@ -1,7 +1,8 @@
 #pragma once
 #include "types.h"
 #include "bone.h"
-#include "solver.h"
+#include "target.h"
+#include "solver_base.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
@@ -21,12 +22,18 @@ public:
     /// @brief Create solver for the bone chain.
     /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone.
     /// @param startBoneIndex Index of the bone from which the IK chain starts
-    /// @return reference to the creates IK solver
-    Solver& AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex);
+    /// @param target The target model for the chain, it can be either coordinates or bone inside the skeleton
+    /// @return reference to the created IK solver
+    SolverBase& AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, Target& target);
+
+    /// @brief Adds specific bone chain for monitoring, bones of the chain can be used as internal targets for other skeleton chains.
+    /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone.
+    /// @return reference to the created dummy IK solver
+    SolverBase& AddChain(const std::vector<BoneDesc>& rootChain);
 
     /// @brief Removes IK chain
     /// @param solver the solver assotiated with IK chain that will be removed
-    void RemoveSolver(const Solver& solver);
+    void RemoveSolver(const SolverRef& solver);
     
     /// @brief Assigns constraint to a particular bone of the skeleton
     /// @param boneIndex index of the bone that will have constraints assigned
@@ -42,7 +49,7 @@ public:
     ///        execution priority equals to the order of chains in the cahin list
     /// @param iterations maximum number of iterrations required to move chains to final position (unused)
     /// @return maximum number of iterrations required to complete chain
-    size_t UpdateChains(size_t iterations);
+    size_t Update(size_t iterations);
 
     // --------------------------------------------------------------------------------------------------
     // Validation functions should not be used directly inside application
@@ -55,7 +62,7 @@ public:
     ///        the tip of current chain
     /// @param solver solver the chain is assotiated with
     /// @return vector of bones that represents the root chain
-    const std::vector<BoneRef>& GetRootChain(const Solver& solver) const;
+    const std::vector<BoneRef>& GetRootChain(const SolverBase& solver) const;
 
     /// @brief updates then chain joint positions according to local rotation of all IK bones from
     ///         root bone till the tip bone of the current chain
@@ -69,11 +76,11 @@ public:
     const std::vector<BonePtr>& GetBones() const {return m_bones;};
 private:
     // Find the chain index assotiated with a given solver
-    size_t FindChainIndex(const Solver& solver) const;
+    size_t FindChainIndex(const SolverBase& solver) const;
     // Add bone to the skeleton structure. 
-    Bone& AddBone(const BoneDesc& description);
+    std::pair<bool, BoneRef> AddBone(const BoneDesc& description);
     // calculate positions for all bones in the current chain
-    Vector CalculateBonePositions(BoneSubchain& chain);
+    Vector CalculateBonePositions(BoneSubchain& chain, const Bone& baseBone);
 
     // Actual IK chain solvers
     std::vector<SolverPtr>  m_solvers;

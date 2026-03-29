@@ -4,6 +4,7 @@
 
 #include "solver.h"
 #include "helpers.h"
+#include "skeleton.h"
 #include "glm/gtx/vector_angle.inl"
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/rotate_vector.hpp"
@@ -14,8 +15,10 @@
 namespace LightIK
 {
 
-Solver::Solver(BoneSubchain&& chain)
+Solver::Solver(BoneSubchain&& chain, Target& target, const Bone& baseBone)
     : m_chain(std::move(chain))
+    , m_target(target)
+    , m_baseBone(baseBone)
 {
     assert(m_chain.size());
     m_cumulativeRotation    = glm::identity<Quaternion>();
@@ -30,17 +33,6 @@ Solver::Solver(BoneSubchain&& chain)
 Vector Solver::GetRootPosition() const
 {
     return m_chain[0].get().GetPosition();
-}
-
-bool Solver::SetConstraint(size_t boneIndex, Constraints&& constraint)
-{
-    if (boneIndex < m_chain.size())
-    {
-        m_chain[boneIndex].get().SetConstraints(std::move(constraint));
-        return true;
-    }
-    
-    return false;
 }
 
 const BoneSubchain& Solver::GetChain() const
@@ -58,11 +50,6 @@ Vector Solver::GetTipPosition() const
     return m_tipPosition; 
 }
 
-void Solver::SetTargetPosition(const Vector& target)
-{
-    m_target = target;
-}
-
 void Solver::LookAt(const Vector& initialDirection, const Vector& target)
 {
     // look at
@@ -73,7 +60,7 @@ void Solver::LookAt(const Vector& initialDirection, const Vector& target)
     }
 }
 
-void Solver::IterateBack()
+void Solver::Execute()
 {   
     // inverse kinematics: iterative
     if (m_chain.empty())
@@ -82,7 +69,7 @@ void Solver::IterateBack()
     }
     Bone& rootBone          = m_chain.front();
     // Assume distance to target is reachable
-    Vector target           = m_target - rootBone.GetPosition();
+    Vector target           = m_target.GetPosition() - rootBone.GetPosition();
     m_cumulativeRotation    = glm::identity<Quaternion>();
 
     Bone&  chainEnd         = m_chain.back();
@@ -108,6 +95,11 @@ void Solver::IterateBack()
 
     // for the root joint all rotations are global
     rootBone.SetRotation(m_cumulativeRotation * rootBone.GetGlobalOrientation());
+}
+
+bool Solver::TargetReached() const
+{
+    return glm::length2(m_tipPosition - m_target.GetPosition()) < EPSILON;
 }
 
 Vector Solver::SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target)

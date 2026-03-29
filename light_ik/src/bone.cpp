@@ -15,6 +15,12 @@
 namespace LightIK
 {
 
+Bone::Bone()
+{
+    m_rotation                  = glm::identity<Quaternion>();
+    m_globalOrientation         = glm::identity<Quaternion>();
+}
+
 Bone::Bone(real length, const Quaternion& orientation)
     : m_rotation(orientation)
     , m_length(length, false)

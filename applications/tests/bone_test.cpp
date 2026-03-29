@@ -21,8 +21,9 @@ TEST(SolverTest, can_create_solver)
 {
     std::unique_ptr<Solver> library;
     Bone bone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
-    
-    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}));
+    Bone ref;
+    TargetPosition target;
+    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}, target, ref));
 };
 
 class SolverBaseTests : public ::testing::Test, public LightIKTestBody
@@ -32,7 +33,7 @@ public:
     { }
 
 protected:
-    Solver& GetSolver() 
+    SolverBase& GetSolver() 
     {
         return *m_solver;
     }
@@ -42,28 +43,31 @@ private:
 
 TEST_F(SolverBaseTests, default_root)
 {
-    Solver& solver = GetSkeleton().AddSolver({
+    TargetPosition target;
+    SolverBase& solver = GetSkeleton().AddSolver({
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 0}
-    }, -1);
+    }, -1, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, solver.GetRootPosition()));
 }
 
 TEST_F(SolverBaseTests, subchain_root)
 {
-    Solver& solver = GetSkeleton().AddSolver({
+    TargetPosition target;
+    SolverBase& solver = GetSkeleton().AddSolver({
         BoneDesc{ glm::identity<Quaternion>(), 2.f, 0},
         BoneDesc{ glm::identity<Quaternion>(), 1.f, 1}
-    }, 1);
+    }, 1, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,2,0}, solver.GetRootPosition()));
 }
 
 TEST_F(SolverBaseTests, subchain_root_complex)
 {
-    Solver& solver = GetSkeleton().AddSolver({
+    TargetPosition target;
+    SolverBase& solver = GetSkeleton().AddSolver({
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 0},
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 1.f, 1},
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 2},
-    }, 2);
+    }, 2, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,-1,2}, solver.GetRootPosition()));
 }
 
@@ -77,35 +81,27 @@ public:
     {
         m_solver = &GetSkeleton().AddSolver({
             BoneDesc{ glm::identity<Quaternion>(), 2.f, 0}
-        }, 1);
+        }, 1, m_target);
     }
 
 protected:
-    Solver& GetSolver() 
+    SolverBase& GetSolver() 
     {
         return *m_solver;
     }
+    TargetPosition& GetTarget() 
+    {
+        return m_target;
+    }
 private:
-    Solver* m_solver = nullptr;
+    SolverBase* m_solver = nullptr;
+    TargetPosition m_target;
 };
-
-TEST_F(SolverTargetingTests, target_default_position)
-{
-    ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, GetSolver().GetTargetPosition()));
-}
 
 TEST_F(SolverTargetingTests, can_set_target)
 {
     Vector target;
-    ASSERT_NO_THROW(GetSolver().SetTargetPosition(target));
-}
-
-TEST_F(SolverTargetingTests, chain_target_position)
-{
-    Vector target{1.f, 23.f, -75.f};
-    GetSolver().SetTargetPosition(target);
-    Vector result = GetSolver().GetTargetPosition();
-    ASSERT_TRUE(TestHelpers::CompareVectors(target, result));
+    ASSERT_NO_THROW(GetTarget().SetPosition(target));
 }
 
 TEST_F(SolverTargetingTests, tip_position_empty)
@@ -116,7 +112,7 @@ TEST_F(SolverTargetingTests, tip_position_empty)
 
 TEST_F(SolverTargetingTests, can_iterate_back)
 {
-    ASSERT_NO_THROW(GetSolver().IterateBack());
+    ASSERT_NO_THROW(GetSolver().Execute());
 }
 
 class BoneLookAtTest : public ::testing::Test, public LightIKTestBody
@@ -125,23 +121,24 @@ protected:
     
     void SetupChain(const std::vector<Vector>& chain, int chainStartIndex, const Vector& target)
     {
-        m_solver = &AddSolver(chain, chainStartIndex);
-        m_solver->SetTargetPosition(target);
+        m_target.SetPosition(target);
+        m_solver = &AddSolver(chain, chainStartIndex, m_target);
     }
 
     void Step(size_t iterations)
     {
-        GetSkeleton().UpdateChains(iterations);
+        GetSkeleton().Update(iterations);
         GetSkeleton().FinalizeChains();
     }
 
-    Solver& GetSolver() 
+    SolverBase& GetSolver() 
     {
         return *m_solver;
     }
 
 private:
-    Solver* m_solver = nullptr;
+    SolverBase* m_solver = nullptr;
+    TargetPosition m_target;
 };
 
 TEST_F(BoneLookAtTest, simple)

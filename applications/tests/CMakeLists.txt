@@ -10,6 +10,7 @@ set(LIGHT_IK_TEST_SRC
     "skeleton_test.cpp"
     "bone_test.cpp"
     "constraints_test.cpp"
+    "coordination_test.cpp"
     "light_ik_test.cpp"
 )
 

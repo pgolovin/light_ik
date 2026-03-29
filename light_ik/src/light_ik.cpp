@@ -18,6 +18,7 @@ namespace LightIK
 LightIK::LightIK(size_t bonesCount)
     : m_skeleton(std::make_unique<Skeleton>(bonesCount))
 {
+    m_relativeRotations.resize(bonesCount);
 }
 
 LightIK::~LightIK()
@@ -31,27 +32,26 @@ void LightIK::Reset()
     // m_solver = std::make_unique<Solver>();
 }
 
-size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex)
+size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, Target& target)
 {
     size_t index = m_solvers.size();
-
-    auto& solver = m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex));
-    // TODO: the chain must be formed automatically after creation
-    //m_skeleton->UpdateChains(solver);
-
+    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, target));
+    for (const BoneDesc& desc : rootChainDesc)
+    {
+        m_relativeRotations[desc.boneIndex] = &m_skeleton->GetBones()[desc.boneIndex]->GetRotation();
+    }
     return index;
 }
 
-void LightIK::AddBone(real length, const Quaternion& orientation)
+size_t LightIK::CreateChain(const std::vector<BoneDesc>& rootChainDesc)
 {
-    //FIXME:
-    // m_solver->AddBone(length, orientation);
-    m_relativeRotations.emplace_back(nullptr);
-}
-
-void LightIK::CompleteChain()
-{
-
+    size_t index = m_solvers.size();
+    m_solvers.emplace_back(m_skeleton->AddChain(rootChainDesc));
+    for (const BoneDesc& desc : rootChainDesc)
+    {
+        m_relativeRotations[desc.boneIndex] = &m_skeleton->GetBones()[desc.boneIndex]->GetRotation();
+    }
+    return index;
 }
 
 void LightIK::SetConstraint(size_t boneIndex, Constraints && constraint)
@@ -59,43 +59,25 @@ void LightIK::SetConstraint(size_t boneIndex, Constraints && constraint)
     m_skeleton->SetConstraint(boneIndex, std::move(constraint));
 }
 
-void LightIK::SetRootPosition(const Vector& rootPosition)
+size_t LightIK::Update(size_t iterations)
 {
-
+    return m_skeleton->Update(iterations);
 }
 
-void LightIK::SetTargetPosition(size_t chainIndex, const Vector& targetPosition)
+const std::vector<const Quaternion*> &LightIK::GetDeltaRotations()
 {
-    assert(chainIndex < m_solvers.size());
-    m_solvers[chainIndex].get().SetTargetPosition(targetPosition);
-}
-
-size_t LightIK::UpdateChains(size_t iterations)
-{
-    return m_skeleton->UpdateChains(iterations);
-}
-
-const std::vector<const Quaternion*> &LightIK::GetDeltaRotations(size_t chainIndex)
-{
-    assert(chainIndex < m_solvers.size());
-    const Solver& solver = m_solvers[chainIndex];
-    //FIXME
-    const auto& chain = solver.GetChain();
-
-    m_relativeRotations.resize(0);
-    for (auto& bone : chain)
-    {
-        m_relativeRotations.push_back(&bone.get().GetRotation());
-    }
-    
     return m_relativeRotations;
 }
 
+TargetBone LightIK::CreateInternalTarget() const
+{
+    return TargetBone(*m_skeleton);
+}
 
-Vector LightIK::GetTargetPosition(size_t chainIndex) const
+Vector LightIK::GetTipPosition(size_t chainIndex) const
 {
     assert(chainIndex < m_solvers.size());
-    return m_solvers[chainIndex].get().GetTargetPosition();
+    return m_solvers[chainIndex].get().GetTipPosition();
 }
 
 real LightIK::GetBoneLength(size_t index) const
@@ -106,10 +88,12 @@ real LightIK::GetBoneLength(size_t index) const
     return m_skeleton->GetBones().at(index)->GetLength();
 }
 
-Vector LightIK::GetRootPosition(size_t chainIndex) const
+Vector LightIK::GetBonePosition(size_t index) const
 {
-    assert(chainIndex < m_solvers.size());
-    return m_solvers[chainIndex].get().GetRootPosition();
+    assert(index < m_skeleton->GetBones().size()); 
+    assert(m_skeleton->GetBones().at(index));
+
+    return m_skeleton->GetBones().at(index)->GetPosition();
 }
 
 }

@@ -3,6 +3,8 @@
 *******************************************************************/
 
 #include "skeleton.h"
+#include "solver.h"
+#include "solver_passive.h"
 #include "helpers.h"
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -14,13 +16,18 @@
 namespace LightIK
 {
 
+static Bone g_boneDummy;
+
 Skeleton::Skeleton(size_t bonesCount)
 {
     m_bones.resize(bonesCount);
 }
 
-Solver& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex)
+SolverBase& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, Target& target)
 {
+    // FIXME: ASSUMPTION that the root of the skeleton is and ephimerial bone with index 0
+    assert(rootChain.size() && 0 == rootChain.front().boneIndex);
+    
     int chainIndex = m_chains.size();
     // Each solver controls specific IK chain
     auto& newChain = m_chains.emplace_back();
@@ -32,23 +39,29 @@ Solver& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t start
     bool inChain = true;
 
     // add bones in reverse order from tip to root
+    BoneRef baseBone = std::ref(g_boneDummy);
     for (size_t i = rootChain.size(); i != 0; --i)
     {
         size_t index = i - 1;
-        Bone& newBone = AddBone(rootChain[index]);
-        newChain.emplace_back(std::ref(newBone));
+        auto boneCreation = AddBone(rootChain[index]);
+
         // verify that bone is still in chain and not a part of any existing chain
         // if it is, and current bone is not a part of IK chain, then the local root bone found
-        if (!inChain && newBone.GetOwner() != nullptr)
+        if (!inChain && !boneCreation.first)
         {
+            Bone& newBone = boneCreation.second;
             // mark the owner of the bone that it has dependencies
-            newBone.GetOwner()->SetDependencies();
+            if (newBone.GetOwner())
+            {
+                newBone.GetOwner()->SetDependencies(true);
+            }
+            baseBone = std::ref(boneCreation.second);
             break;
         }
-
+        newChain.emplace_back(boneCreation.second);
         if (inChain)
         {
-            solverChain.emplace_back(std::ref(newBone));
+            solverChain.emplace_back(boneCreation.second);
         }
         // if bone index is equal to start bone index of the chain, it means that all previous bones
         // are part of the root chain but not a part of IK calculations
@@ -62,12 +75,49 @@ Solver& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t start
     std::reverse(newChain.begin(), newChain.end());
     std::reverse(solverChain.begin(), solverChain.end());
 
-    CalculateBonePositions(newChain);
+    // Calculate bone positions for all chain
+    CalculateBonePositions(newChain, baseBone);
     
-    return *m_solvers.emplace_back(std::make_unique<Solver>(std::move(solverChain)));
+    return *m_solvers.emplace_back(std::make_unique<Solver>(std::move(solverChain), target, baseBone));
 }
 
-void Skeleton::RemoveSolver(const Solver& solver)
+SolverBase& Skeleton::AddChain(const std::vector<BoneDesc>& rootChain)
+{
+    assert(rootChain.size() && 0 == rootChain.front().boneIndex);
+    
+    int chainIndex = m_chains.size();
+    auto& newChain = m_chains.emplace_back();
+    newChain.reserve(rootChain.size());
+    BoneRef baseBone = std::ref(g_boneDummy);
+    for (size_t i = rootChain.size(); i != 0; --i)
+    {
+        size_t index = i - 1;
+        auto boneCreation = AddBone(rootChain[index]);
+
+        // verify that bone is still in chain and not a part of any existing chain
+        // if it is, and current bone is not a part of IK chain, then the local root bone found
+        if (!boneCreation.first)
+        {
+            Bone& newBone = boneCreation.second;
+            // mark the owner of the bone that it has dependencies
+            if (newBone.GetOwner())
+            {
+                newBone.GetOwner()->SetDependencies(true);
+            }
+            baseBone = std::ref(boneCreation.second);
+            break;
+        }
+        newChain.emplace_back(boneCreation.second);
+    }
+    // reverse chain into stright direction
+    std::reverse(newChain.begin(), newChain.end());
+
+    // Calculate bone positions for all chain
+    CalculateBonePositions(newChain, baseBone);
+    return *m_solvers.emplace_back(std::make_unique<SolverPassive>(baseBone));
+}
+
+void Skeleton::RemoveSolver(const SolverRef& solver)
 {
     size_t index = FindChainIndex(solver);
 
@@ -87,31 +137,32 @@ bool Skeleton::SetConstraint(int boneIndex, Constraints && constraint)
     return bone;
 }
 
-size_t Skeleton::UpdateChains(size_t iterations)
+size_t Skeleton::Update(size_t iterations)
 {
     size_t count = iterations;
     for (size_t c = 0; c < m_chains.size(); ++c)
     {
-        Solver& solver      = *m_solvers[c];
+        SolverBase& solver  = *m_solvers[c];
         BoneSubchain& chain = m_chains[c];
         // do the iterrations untill tip and target will be in the same position
         for(size_t i = 0; i < iterations; ++i)
         {
-            Vector tip = CalculateBonePositions(chain);
+            Vector tip = CalculateBonePositions(chain, solver.GetBaseBone());
             solver.SetTipPosition(tip);
 
-            if (glm::length2(tip - solver.GetTargetPosition()) < EPSILON)
+            if (solver.TargetReached())
             {
                 // return false if no iterations were done
                 count = std::min(count, i);
                 break;
             }
 
-            solver.IterateBack();
+            solver.Execute();            
         }
+        
         if (solver.HasDependencies())
         {
-            Vector tip = CalculateBonePositions(chain);
+            Vector tip = CalculateBonePositions(chain, solver.GetBaseBone());
             solver.SetTipPosition(tip);
         }
     }
@@ -122,12 +173,12 @@ void Skeleton::FinalizeChains()
 {
     for (size_t c = 0; c < m_chains.size(); ++c)
     {
-        Vector tip = CalculateBonePositions(m_chains[c]);
+        Vector tip = CalculateBonePositions(m_chains[c], m_solvers[c]->GetBaseBone());
         m_solvers[c]->SetTipPosition(tip);
     }
 }
 
-const std::vector<BoneRef>& Skeleton::GetRootChain(const Solver& solver) const    
+const std::vector<BoneRef>& Skeleton::GetRootChain(const SolverBase& solver) const    
 { 
     size_t index = FindChainIndex(solver);
 
@@ -140,22 +191,12 @@ const std::vector<BoneRef>& Skeleton::GetRootChain(const Solver& solver) const
     return m_chains[index]; 
 }
 
-// void Skeleton::CompleteChain(Solver& solver)
-// {
-//     // Get the chain that needs to be pocessed
-//     size_t index = FindChainIndex(solver);
-
-//     Vector tipPosition = CalculateBonePositions(m_chains[index]);
-//     // provide the tip position of the current chain
-//     solver.SetTipPosition(tipPosition);
-// }
-
-size_t Skeleton::FindChainIndex(const Solver& solver) const
+size_t Skeleton::FindChainIndex(const SolverBase& solver) const
 {
     size_t index = 0;
     for (auto& solverItem : m_solvers)
     {
-        if (solverItem.get() == &solver)
+        if (solverItem.get() == (SolverBase*)&solver)
         {
             return index;
         }
@@ -164,30 +205,31 @@ size_t Skeleton::FindChainIndex(const Solver& solver) const
     return -1LLU;
 }
 
-Bone& Skeleton::AddBone(const BoneDesc& description)
+std::pair<bool, BoneRef> Skeleton::AddBone(const BoneDesc& description)
 {
     // add new bone to the chain
     assert (m_bones.size() > description.boneIndex);
 
     auto& bone = m_bones[description.boneIndex];
+    bool created = !bone;
     // if bone already exists, return the existing bone, otherwise create a new bone and attach it to current chain
     if (!bone)
     {
         bone = std::make_unique<Bone>(description.length, description.orientation);
     }
         
-    return *bone;
+    return {created, *bone};
 }
 
-Vector Skeleton::CalculateBonePositions(BoneSubchain& chain)
+Vector Skeleton::CalculateBonePositions(BoneSubchain& chain, const Bone& baseBone)
 {   
     // Chain must have at least one bone
     assert(chain.size() > 0);
     // Front kinematics: separated from the solver to make the functionality common and independent from any solvers 
     // Front kinematic always calculated from the chain root position - the bone that either root of overall skeleton,
     //  or bone of the parent IK chain
-    Quaternion rotation                 = glm::identity<Quaternion>();
-    Vector position                     = chain[0].get().GetPosition();
+    Quaternion rotation                 = baseBone.GetGlobalOrientation();
+    Vector position                     = baseBone.GetPosition()+ (rotation * Helpers::DefaultAxis() * baseBone.GetLength());
 
     for (size_t i = 0; i < chain.size(); ++i)
     {

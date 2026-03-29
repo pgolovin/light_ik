@@ -71,9 +71,9 @@ struct Length
 
     }
 
-    real l         = 1.f;       // current length
-    real l2        = 1.f;       // current sqared length
-    real base      = 1.f;       // initial length
+    real l         = 0.f;       // current length
+    real l2        = 0.f;       // current sqared length
+    real base      = 0.f;       // initial length
     real stretch   = 0.f;       // extension factor. if 0 bone has fixed length
 };
     

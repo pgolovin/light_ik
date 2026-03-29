@@ -12,16 +12,12 @@
 namespace LightIK
 {
 
-class Bone;
-class Solver;
-using BonePtr       = std::unique_ptr<Bone>;
-using BoneRef       = std::reference_wrapper<Bone>;
-using BoneSubchain  = std::vector<BoneRef>;
+class SolverBase;
 
 class Bone
 {
 public:
-    Bone() = default;
+    Bone();
     Bone(real length, const Quaternion& orientation); 
     
     // Global orientation of the bone in the system coordinates assotiated with the root bone
@@ -47,8 +43,8 @@ public:
     void SetPosition(const Vector& position)        {m_position = position;}
     const Vector& GetPosition() const               {return m_position;}
 
-    void SetOwner(Solver* owner)                    {m_owner = owner;}
-    Solver* GetOwner() const                        {return m_owner;}
+    void SetOwner(SolverBase* owner)                {m_owner = owner;}
+    SolverBase* GetOwner() const                    {return m_owner;}
 private:
     Quaternion  m_globalOrientation;
     Quaternion  m_rotation;
@@ -61,7 +57,11 @@ private:
     Vector      m_position = Vector(0,0,0);
 
     // index of the bone, if index is negative the bone does not exists
-    Solver*     m_owner = nullptr;
+    SolverBase* m_owner = nullptr;
 };
+
+using BonePtr       = std::unique_ptr<Bone>;
+using BoneRef       = std::reference_wrapper<Bone>;
+using BoneSubchain  = std::vector<BoneRef>;
 
 }
