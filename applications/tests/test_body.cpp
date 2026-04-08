@@ -16,9 +16,9 @@
 namespace LightIK
 {
 
-LightIKTestBody::LightIKTestBody()
+LightIKTestBody::LightIKTestBody(size_t bones)
 {
-    m_skeleton = std::make_unique<Skeleton>(10); 
+    m_skeleton = std::make_unique<Skeleton>(bones); 
 }
 
 BoneDesc LightIKTestBody::ConstructDescriptor(const Vector& parentOrientation, const Vector& position, const Vector& target, int index)
@@ -102,7 +102,7 @@ SolverRef LightIKTestBody::CreateSolver(const std::vector<BoneDesc>& skeleton, c
     return std::ref(GetSkeleton().AddSolver(subDescriptors, startIndex, target));
 }
 
-SolverRef LightIKTestBody::CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches)
+SolverBase* LightIKTestBody::CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches)
 {
     std::vector<BoneDesc> subDescriptors;
 
@@ -111,7 +111,7 @@ SolverRef LightIKTestBody::CreatePassiveChain(const std::vector<BoneDesc>& skele
         subDescriptors.emplace_back(skeleton[i]);
     }
     
-    return std::ref(GetSkeleton().AddChain(subDescriptors));
+    return GetSkeleton().AddChain(subDescriptors);
 }
 
 Skeleton& LightIKTestBody::GetSkeleton() 

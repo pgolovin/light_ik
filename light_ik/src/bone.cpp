@@ -17,12 +17,14 @@ namespace LightIK
 
 Bone::Bone()
 {
+    m_initialRotation           = glm::identity<Quaternion>();
     m_rotation                  = glm::identity<Quaternion>();
     m_globalOrientation         = glm::identity<Quaternion>();
 }
 
 Bone::Bone(real length, const Quaternion& orientation)
     : m_rotation(orientation)
+    , m_initialRotation(orientation)
     , m_length(length, false)
 {
     m_globalOrientation         = glm::identity<Quaternion>();
@@ -49,6 +51,12 @@ Quaternion Bone::ApplyConstraint(const Quaternion& rotation) const
 {
     Vector angles               = glm::clamp(Helpers::ToEulerXZY(rotation), m_constraints.minAngles, m_constraints.maxAngles);
     return Helpers::FromEulerXZY(angles);
+}
+
+void Bone::Reset()
+{ 
+    m_rotation                  = m_initialRotation;
+    m_globalOrientation         = glm::identity<Quaternion>();
 }
 
 }

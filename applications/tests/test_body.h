@@ -12,7 +12,7 @@ namespace LightIK
 class LightIKTestBody
 {
 public: 
-    LightIKTestBody();
+    LightIKTestBody(size_t bones = 10);
 
     BoneDesc ConstructDescriptor(const Vector& parentOrientation, const Vector& position, const Vector& target, int index);
     // Construct descriptors to build chains upon it
@@ -30,7 +30,7 @@ public:
         const std::vector<int>& startIndices, 
         const std::vector<TargetRef>& targets);
     SolverRef CreateSolver(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches, int startIndices, Target& target);
-    SolverRef CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches);
+    SolverBase* CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches);
     // Force chain completion: to calculate joint global positions
     void CompleteChain(SolverBase& solver);
 

@@ -25,11 +25,16 @@ LightIK::~LightIK()
 {
 }
 
+void LightIK::ResetPose()
+{
+    m_skeleton->ResetPose();
+}
+
 void LightIK::Reset()
 {
-    //FIXME
-    // Reset solver and all bones;
-    // m_solver = std::make_unique<Solver>();
+    m_solvers.clear();
+    m_targets.clear();
+    m_skeleton->ResetIK();
 }
 
 size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, Target& target)
@@ -38,20 +43,41 @@ size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int ch
     m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, target));
     for (const BoneDesc& desc : rootChainDesc)
     {
-        m_relativeRotations[desc.boneIndex] = &m_skeleton->GetBones()[desc.boneIndex]->GetRotation();
+        Bone* bone = m_skeleton->GetBones()[desc.boneIndex].get();
+        m_relativeRotations[desc.boneIndex] = bone ? &bone->GetRotation() : nullptr;
     }
     return index;
 }
 
-size_t LightIK::CreateChain(const std::vector<BoneDesc>& rootChainDesc)
+size_t LightIK::CreateIKLink(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, int targetBoneIndex)
 {
     size_t index = m_solvers.size();
-    m_solvers.emplace_back(m_skeleton->AddChain(rootChainDesc));
+    std::unique_ptr<TargetBone> bone = std::make_unique<TargetBone>(*m_skeleton);
+    bone->AssignBone(targetBoneIndex);
+    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, *bone));
+    m_targets.emplace_back(std::move(bone));
+
     for (const BoneDesc& desc : rootChainDesc)
     {
-        m_relativeRotations[desc.boneIndex] = &m_skeleton->GetBones()[desc.boneIndex]->GetRotation();
+        Bone* bone = m_skeleton->GetBones()[desc.boneIndex].get();
+        m_relativeRotations[desc.boneIndex] = bone ? &bone->GetRotation() : nullptr;
     }
     return index;
+}
+
+void LightIK::CreatePassiveChain(const std::vector<BoneDesc>& rootChainDesc)
+{
+    SolverBase* passiveChain = m_skeleton->AddChain(rootChainDesc);
+    if (passiveChain)
+    {
+        m_solvers.emplace_back(*passiveChain);
+
+        for (const BoneDesc& desc : rootChainDesc)
+        {
+            Bone* bone = m_skeleton->GetBones()[desc.boneIndex].get();
+            m_relativeRotations[desc.boneIndex] = bone ? &bone->GetRotation() : nullptr;
+        }
+    }
 }
 
 void LightIK::SetConstraint(size_t boneIndex, Constraints && constraint)
@@ -69,9 +95,31 @@ const std::vector<const Quaternion*> &LightIK::GetDeltaRotations()
     return m_relativeRotations;
 }
 
-TargetBone LightIK::CreateInternalTarget() const
+const Vector& LightIK::GetTargetPosition(size_t chainIndex) const
 {
-    return TargetBone(*m_skeleton);
+    assert(m_solvers.size() > chainIndex);
+    return m_solvers[chainIndex].get().GetTargetPosition();
+}
+
+TargetBone& LightIK::CreateInternalTarget()
+{
+    auto target = std::make_unique<TargetBone>(*m_skeleton);
+    TargetBone& ref = *target;
+    m_targets.emplace_back(std::move(target));
+    return ref;
+}
+
+TargetPosition& LightIK::CreateTarget()
+{
+    auto target = std::make_unique<TargetPosition>();
+    TargetPosition& ref = *target;
+    m_targets.emplace_back(std::move(target));
+    return ref;
+}
+
+size_t LightIK::GetSolversCount() const
+{
+    return m_skeleton->GetSolversCount();
 }
 
 Vector LightIK::GetTipPosition(size_t chainIndex) const

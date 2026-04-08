@@ -23,7 +23,7 @@ TEST(SolverTest, can_create_solver)
     Bone bone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     Bone ref;
     TargetPosition target;
-    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}, target, ref));
+    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}, ref, target));
 };
 
 class SolverBaseTests : public ::testing::Test, public LightIKTestBody
@@ -107,7 +107,7 @@ TEST_F(SolverTargetingTests, can_set_target)
 TEST_F(SolverTargetingTests, tip_position_empty)
 {
     Vector result = GetSolver().GetTipPosition();
-    ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, result));
+    ASSERT_TRUE(TestHelpers::CompareVectors({0,2,0}, result));
 }
 
 TEST_F(SolverTargetingTests, can_iterate_back)

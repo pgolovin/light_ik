@@ -32,7 +32,7 @@ class SkeletonBaseTest : public ::testing::Test, public LightIKTestBody
 
 TEST_F(SkeletonBaseTest, no_default_chains)
 {
-    ASSERT_EQ(0, GetSkeleton().GetChainsCount());
+    ASSERT_EQ(0, GetSkeleton().GetSolversCount());
 }
 
 TEST_F(SkeletonBaseTest, new_chain)
@@ -45,7 +45,49 @@ TEST_F(SkeletonBaseTest, new_chain_added)
 {
     TargetPosition target;
     AddSolver({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}}, 0, target);
-    ASSERT_EQ(1LLU, GetSkeleton().GetChainsCount());
+    ASSERT_EQ(1LLU, GetSkeleton().GetSolversCount());
+}
+
+TEST_F(SkeletonBaseTest, passive_chain_created)
+{
+    TargetPosition target;
+    
+    auto descriptors = ConstructDescriptors({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}});
+    ASSERT_TRUE(GetSkeleton().AddChain(descriptors));
+}
+
+TEST_F(SkeletonBaseTest, passive_chain_added)
+{
+    TargetPosition target;
+    
+    auto descriptors = ConstructDescriptors({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}});
+    GetSkeleton().AddChain(descriptors);
+    ASSERT_EQ(1LLU, GetSkeleton().GetSolversCount());
+}
+
+TEST_F(SkeletonBaseTest, passive_chain_over_existing)
+{
+    TargetPosition target;
+    auto descriptors = ConstructDescriptors({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}});
+    GetSkeleton().AddSolver(descriptors, 0, target);
+    ASSERT_FALSE(GetSkeleton().AddChain(descriptors));
+}
+
+TEST_F(SkeletonBaseTest, passive_chain_not_added)
+{
+    TargetPosition target;
+    auto descriptors = ConstructDescriptors({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}});
+    GetSkeleton().AddSolver(descriptors, 0, target);
+    GetSkeleton().AddChain(descriptors);
+    ASSERT_EQ(1LLU, GetSkeleton().GetSolversCount());
+}
+
+TEST_F(SkeletonBaseTest, reset)
+{
+    TargetPosition target;
+    AddSolver({Vector{0,0,0}, Vector{0,1,0}, Vector{0,2,0}}, 0, target);
+    GetSkeleton().ResetIK();
+    ASSERT_EQ(0LLU, GetSkeleton().GetSolversCount());
 }
 
 TEST_F(SkeletonBaseTest, new_chain_index)
@@ -100,7 +142,7 @@ TEST_F(SkeletonBaseTest, add_second_chain)
     descriptors.front().boneIndex = 0;
 
     GetSkeleton().AddSolver(descriptors, 0, target);
-    ASSERT_EQ(2, GetSkeleton().GetChainsCount());
+    ASSERT_EQ(2, GetSkeleton().GetSolversCount());
 }
 
 TEST_F(SkeletonBaseTest, one_bone_chain)
@@ -121,22 +163,6 @@ TEST_F(SkeletonBaseTest, construct_chain)
     TargetPosition target;
     SolverBase& solver = GetSkeleton().AddSolver({BoneDesc{glm::identity<Quaternion>(), 1.f, 0}}, 0, target);
     ASSERT_NO_THROW(GetSkeleton().Update(1));
-}
-
-TEST_F(SkeletonBaseTest, bone_positions)
-{
-    TargetPosition target;
-    std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
-    SolverBase& solver = AddSolver(chain, 0, target);
-
-    GetSkeleton().Update(1);
-    const auto& rootChain = GetSkeleton().GetRootChain(solver);
-
-    for(size_t i = 0; i < chain.size() - 1; ++i)
-    {
-        ASSERT_TRUE(TestHelpers::CompareVectors(chain[i], rootChain[i + 1].get().GetPosition())) << "Failed at " << i << "th";
-    }
-    ASSERT_TRUE(TestHelpers::CompareVectors(chain.back(), solver.GetTipPosition())) << "Failed at tip";
 }
 
 TEST_F(SkeletonBaseTest, tip_oriented_position)
@@ -194,6 +220,58 @@ TEST_F(SkeletonBaseTest, independent_solver)
     ASSERT_FALSE(solver.HasDependencies());
 }
 
+TEST_F(SkeletonBaseTest, bone_positions)
+{
+    TargetPosition target;
+    std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
+    SolverBase& solver = AddSolver(chain, 0, target);
+
+    GetSkeleton().Update(1);
+    const auto& rootChain = GetSkeleton().GetRootChain(solver);
+
+    for(size_t i = 0; i < chain.size() - 1; ++i)
+    {
+        ASSERT_TRUE(TestHelpers::CompareVectors(chain[i], rootChain[i + 1].get().GetPosition())) << "Failed at " << i << "th";
+    }
+    ASSERT_TRUE(TestHelpers::CompareVectors(chain.back(), solver.GetTipPosition())) << "Failed at tip";
+}
+
+TEST_F(SkeletonBaseTest, chain_movement)
+{
+    TargetPosition target;
+    std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
+    SolverBase& solver = AddSolver(chain, 0, target);
+    target.SetPosition({0, 4, 4});
+    GetSkeleton().Update(1);
+    GetSkeleton().FinalizeChains();
+
+    const auto& rootChain = GetSkeleton().GetRootChain(solver);
+    for(size_t i = 0; i < chain.size() - 1; ++i)
+    {
+        ASSERT_FALSE(TestHelpers::CompareVectors(chain[i], rootChain[i + 1].get().GetPosition())) << "Failed at " << i << "th";
+    }
+    ASSERT_FALSE(TestHelpers::CompareVectors(chain.back(), solver.GetTipPosition())) << "Failed at tip";
+}
+
+TEST_F(SkeletonBaseTest, bone_reset)
+{
+    TargetPosition target;
+    std::vector<Vector> chain{Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}};
+    SolverBase& solver = AddSolver(chain, 0, target);
+    target.SetPosition({0, 4, 4});
+    GetSkeleton().Update(1);
+    GetSkeleton().FinalizeChains();
+    GetSkeleton().ResetPose();
+    const auto& rootChain = GetSkeleton().GetRootChain(solver);
+
+    for(size_t i = 0; i < chain.size() - 1; ++i)
+    {
+        ASSERT_TRUE(TestHelpers::CompareVectors(chain[i], rootChain[i + 1].get().GetPosition())) << "Failed at " << i << "th";
+    }
+    ASSERT_TRUE(TestHelpers::CompareVectors(chain.back(), solver.GetTipPosition())) << "Failed at tip";
+}
+
+
 class SkeletonChainingTest : public SkeletonBaseTest
 {
 public: 
@@ -228,7 +306,7 @@ TEST_F(SkeletonChainingTest, add_branches)
 {
     
     auto& solvers = ConstructSkeleton({0, 5, 7});
-    ASSERT_EQ(3, GetSkeleton().GetChainsCount());
+    ASSERT_EQ(3, GetSkeleton().GetSolversCount());
 }
 
 

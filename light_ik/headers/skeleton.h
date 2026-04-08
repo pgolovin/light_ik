@@ -28,8 +28,8 @@ public:
 
     /// @brief Adds specific bone chain for monitoring, bones of the chain can be used as internal targets for other skeleton chains.
     /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone.
-    /// @return reference to the created dummy IK solver
-    SolverBase& AddChain(const std::vector<BoneDesc>& rootChain);
+    /// @return pointer to the created dummy IK solver, or nullptr if chain was not created
+    SolverBase* AddChain(const std::vector<BoneDesc>& rootChain);
 
     /// @brief Removes IK chain
     /// @param solver the solver assotiated with IK chain that will be removed
@@ -43,7 +43,7 @@ public:
 
     /// @brief Returns the number of created IK chains inside the current skeleton
     /// @return number of IK chains
-    size_t GetChainsCount() const                               { return m_chains.size(); }
+    size_t GetSolversCount() const                                  { return m_solvers.size();      }
 
     /// @brief Executes all IK mechanics for all chains to reach assotiated target positions
     ///        execution priority equals to the order of chains in the cahin list
@@ -73,19 +73,37 @@ public:
 
     /// @brief Returns the full list of bones envolved into IK mechanics
     /// @return the full list of bones
-    const std::vector<BonePtr>& GetBones() const {return m_bones;};
+    const std::vector<BonePtr>& GetBones() const                    { return m_bones;               }
+
+    /// @brief Resets skeleton structure, drops all IK chains and solvers
+    void ResetIK();
+
+    /// @brief Resets sceleton position to original pose
+    void ResetPose();
+
 private:
+    // Descriptor for root chain
+    struct RootChain
+    {
+        // The element list of the root chain
+        BoneSubchain    chain;
+        // The parent  bone of the chain
+        BoneRef         baseBone;
+    };
+    using RootChainPtr = std::unique_ptr<RootChain>;
+
     // Find the chain index assotiated with a given solver
     size_t FindChainIndex(const SolverBase& solver) const;
     // Add bone to the skeleton structure. 
     std::pair<bool, BoneRef> AddBone(const BoneDesc& description);
     // calculate positions for all bones in the current chain
-    Vector CalculateBonePositions(BoneSubchain& chain, const Bone& baseBone);
+    Vector CalculateBonePositions(RootChain& chain);
 
     // Actual IK chain solvers
     std::vector<SolverPtr>  m_solvers;
+
     // All full chains from root items to tip of the current chain
-    std::vector<std::vector<BoneRef>> m_chains;
+    std::vector<RootChainPtr> m_chains;
     // Full list of bones assigned to IK chains and their root elements
     std::vector<BonePtr>    m_bones;
 };

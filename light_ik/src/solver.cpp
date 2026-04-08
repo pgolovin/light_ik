@@ -15,10 +15,10 @@
 namespace LightIK
 {
 
-Solver::Solver(BoneSubchain&& chain, Target& target, const Bone& baseBone)
+Solver::Solver(BoneSubchain&& chain, const Bone& parentBone, Target& target)
     : m_chain(std::move(chain))
     , m_target(target)
-    , m_baseBone(baseBone)
+    , m_parentBone(parentBone)
 {
     assert(m_chain.size());
     m_cumulativeRotation    = glm::identity<Quaternion>();
@@ -56,7 +56,6 @@ void Solver::LookAt(const Vector& initialDirection, const Vector& target)
     if (glm::length2(target) > EPSILON)
     {
         m_cumulativeRotation = Helpers::CalculateRotation(glm::normalize(initialDirection), glm::normalize(target)) * m_cumulativeRotation;
-        m_cumulativeRotation = m_chain.front().get().ApplyConstraint(m_cumulativeRotation);
     }
 }
 
@@ -93,8 +92,18 @@ void Solver::Execute()
     // do the final rotation of the root bone (if possible)
     LookAt(chainTip, target);
 
+    // Calculate relative rotation of the current bone according to the orienation of its parent bone
+    auto parentOrientation  = m_parentBone.GetGlobalOrientation();
+    
+    // Applying constraints for the child bone
+    auto childRotation = rootBone.ApplyConstraint(glm::inverse(parentOrientation) * m_cumulativeRotation * rootBone.GetGlobalOrientation());
+    rootBone.SetRotation(childRotation); 
+
+    // recalculate tip rotation and target position according to constraints of the child bone
+    // tipRotation             = parentOrientation * childRotation * glm::inverse(childOrientation);
+    // newTip                  = tipRotation * currentTip;
     // for the root joint all rotations are global
-    rootBone.SetRotation(m_cumulativeRotation * rootBone.GetGlobalOrientation());
+    // rootBone.SetRotation(m_cumulativeRotation * rootBone.GetGlobalOrientation());
 }
 
 bool Solver::TargetReached() const

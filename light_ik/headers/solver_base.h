@@ -17,9 +17,8 @@ struct SolverBase
     // TODO: maybe remove
     virtual Vector GetTipPosition() const = 0;
     virtual Vector GetRootPosition() const = 0;
+    virtual const Vector& GetTargetPosition() const = 0;
     
-    virtual const Bone& GetBaseBone() const = 0;
-
     virtual void   SetDependencies(bool hasDependencies) = 0;
     virtual bool   HasDependencies() const = 0;
 

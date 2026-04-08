@@ -2,15 +2,8 @@
   * Copyright: Pavel Golovinskiy 2025
 *******************************************************************/
 
-#include "solver.h"
 #include "helpers.h"
 #include "skeleton.h"
-#include "glm/gtx/vector_angle.inl"
-#define GLM_ENABLE_EXPERIMENTAL
-#include "glm/gtx/rotate_vector.hpp"
-//#include "glm/gtx/quaternion.hpp"
-
-#include <iostream>
 
 namespace LightIK
 {

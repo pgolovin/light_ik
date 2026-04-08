@@ -17,7 +17,7 @@ class Solver final : public SolverBase
     const size_t m_defaultPose = 0;
     const Bone   m_defaultBone{};
 public:
-    Solver(BoneSubchain&& chain, Target& target, const Bone& baseBone);
+    Solver(BoneSubchain&& chain, const Bone& parentBone, Target& target);
     virtual ~Solver() = default;
 
     const BoneSubchain& GetChain() const;
@@ -27,8 +27,9 @@ public:
     void   SetTipPosition(Vector& position) override;
     Vector GetTipPosition() const;
 
+    const Vector& GetTargetPosition() const override        { return m_target.GetPosition(); }
+
     Vector GetRootPosition() const;
-    const Bone& GetBaseBone() const override                { return m_baseBone; }
 
     void   SetDependencies(bool hasDependencies) override   { m_hasDependencies = hasDependencies;}
     bool   HasDependencies() const override                 { return m_hasDependencies;}
@@ -41,7 +42,7 @@ private:
     Vector                  SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
     std::pair<real, real>   CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
     
-    const Bone&             m_baseBone;
+    const Bone&             m_parentBone;
     BoneSubchain            m_chain;   // bones chain
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
     Target&                 m_target;

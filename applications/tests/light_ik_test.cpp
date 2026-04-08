@@ -273,6 +273,14 @@ public:
         }
         GetLibrary().CreateIKChain(rootDescriptors, 0, m_spineTarget);
         
+        std::vector<int> passiveChain {0, 1, 2, 3, 7, 8};
+        std::vector<BoneDesc> passiveDescriptors;
+        for (int index : passiveChain)
+        {
+            passiveDescriptors.emplace_back(descriptors[index]);
+        }
+        GetLibrary().CreatePassiveChain(passiveDescriptors);
+        
         std::vector<int> branchStructure {0, 1, 5, 6};
         std::vector<BoneDesc> branchDescriptors;
         for (int index : branchStructure)
@@ -280,14 +288,6 @@ public:
             branchDescriptors.emplace_back(descriptors[index]);
         }
         GetLibrary().CreateIKChain(branchDescriptors, 5, m_boneTarget);
-
-        std::vector<int> passiveChain {0, 1, 2, 3, 7, 8};
-        std::vector<BoneDesc> passiveDescriptors;
-        for (int index : passiveChain)
-        {
-            passiveDescriptors.emplace_back(descriptors[index]);
-        }
-        GetLibrary().CreateChain(passiveDescriptors);
         m_boneTarget.AssignBone(8);
     }
 

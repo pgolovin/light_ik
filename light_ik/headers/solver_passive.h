@@ -10,20 +10,21 @@ namespace LightIK
 class SolverPassive final : public SolverBase
 {
     const size_t m_defaultPose = 0;
+    const Vector m_zero{0,0,0};
     const Bone   m_defaultBone{};
 public:
-    SolverPassive(const Bone& baseBone) : m_baseBone(baseBone) {};
+    SolverPassive() = default;
     virtual ~SolverPassive() = default;
 
     const BoneSubchain& GetChain() const                    { return m_chain; }
 
-    size_t GetChainSize() const                             { return 0; }
+    size_t GetChainSize() const override                    { return 0; }
 
     void   SetTipPosition(Vector& position) override        { }
-    Vector GetTipPosition() const                           { return Vector(0, 0, 0); }
+    Vector GetTipPosition() const override                  { return Vector(0, 0, 0); }
+    const Vector& GetTargetPosition() const override        { return m_zero; }
 
-    Vector GetRootPosition() const                          { return Vector(0, 0, 0); }
-    const Bone& GetBaseBone() const override                { return m_baseBone; }
+    Vector GetRootPosition() const override                 { return Vector(0, 0, 0); }
 
     void   SetDependencies(bool hasDependencies) override   { }
     bool   HasDependencies() const override                 { return false;}
@@ -32,7 +33,6 @@ public:
     void   Execute() override                               { }
     
 private:
-    const Bone&             m_baseBone;
     BoneSubchain            m_chain;
 };
 

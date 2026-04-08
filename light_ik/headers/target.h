@@ -12,6 +12,7 @@ struct Target
 {
     virtual const Vector& GetPosition() const = 0;
 };
+using TargetPtr = std::unique_ptr<Target>;
 using TargetRef = std::reference_wrapper<Target>;
 
 // Target that is represented by a simple point in the 3D space
