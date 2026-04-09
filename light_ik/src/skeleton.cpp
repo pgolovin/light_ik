@@ -91,10 +91,10 @@ SolverBase& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t s
     // Add new solver
     assert(parentBone);
 
-    std::unique_ptr<Solver> newSolver = std::make_unique<Solver>(std::move(solverChain), *parentBone, target);
-    newSolver->SetTipPosition(tipPosition);
+    newChain.solver = std::make_unique<Solver>(std::move(solverChain), *parentBone, target);
+    newChain.solver->SetTipPosition(tipPosition);
     
-    return *m_solvers.emplace_back(std::move(newSolver));
+    return *newChain.solver;
 }
 
 SolverBase* Skeleton::AddChain(const std::vector<BoneDesc>& rootChain)
@@ -135,18 +135,17 @@ SolverBase* Skeleton::AddChain(const std::vector<BoneDesc>& rootChain)
     std::reverse(chain.begin(), chain.end());
 
     // Add new chain only if it has at least one element
-    RootChain& newChain = *m_chains.emplace_back(std::make_unique<RootChain>(RootChain{std::move(chain), baseBone}));
+    RootChain& newChain = *m_chains.emplace_back(std::make_unique<RootChain>(RootChain{std::move(chain), baseBone, std::make_unique<SolverPassive>()}));
 
     // Calculate bone positions for all chain
     CalculateBonePositions(newChain);
-    return m_solvers.emplace_back(std::make_unique<SolverPassive>()).get();
+    return newChain.solver.get();
 }
 
 void Skeleton::RemoveSolver(const SolverRef& solver)
 {
     size_t index = FindChainIndex(solver);
 
-    m_solvers[index]    = nullptr;
     m_chains[index]     = nullptr;
 }
 
@@ -167,8 +166,8 @@ size_t Skeleton::Update(size_t iterations)
     size_t count = iterations;
     for (size_t c = 0; c < m_chains.size(); ++c)
     {
-        SolverBase& solver      = *m_solvers[c];
         RootChain& rootChain    = *m_chains[c];
+        SolverBase& solver      = *rootChain.solver;
         // do the iterrations untill tip and target will be in the same position
         for(size_t i = 0; i < iterations; ++i)
         {
@@ -196,10 +195,10 @@ size_t Skeleton::Update(size_t iterations)
 
 void Skeleton::FinalizeChains()
 {
-    for (size_t c = 0; c < m_chains.size(); ++c)
+    for (auto& chain : m_chains)
     {
-        Vector tip = CalculateBonePositions(*m_chains[c]);
-        m_solvers[c]->SetTipPosition(tip);
+        Vector tip = CalculateBonePositions(*chain);
+        chain->solver->SetTipPosition(tip);
     }
 }
 
@@ -219,9 +218,9 @@ const std::vector<BoneRef>& Skeleton::GetRootChain(const SolverBase& solver) con
 size_t Skeleton::FindChainIndex(const SolverBase& solver) const
 {
     size_t index = 0;
-    for (auto& solverItem : m_solvers)
+    for (auto& chain : m_chains)
     {
-        if (solverItem.get() == (SolverBase*)&solver)
+        if (chain->solver.get() == (SolverBase*)&solver)
         {
             return index;
         }
@@ -271,7 +270,6 @@ Vector Skeleton::CalculateBonePositions(RootChain& rootChain)
 
 void Skeleton::ResetIK()
 {
-    m_solvers.clear();
     m_chains.clear();
     // reset all created bones to build skeletal structure from scratch
     // TO THINK: suboptimal algorithm

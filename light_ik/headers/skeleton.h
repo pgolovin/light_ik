@@ -43,7 +43,7 @@ public:
 
     /// @brief Returns the number of created IK chains inside the current skeleton
     /// @return number of IK chains
-    size_t GetSolversCount() const                                  { return m_solvers.size();      }
+    size_t GetSolversCount() const                                  { return m_chains.size();      }
 
     /// @brief Executes all IK mechanics for all chains to reach assotiated target positions
     ///        execution priority equals to the order of chains in the cahin list
@@ -89,6 +89,8 @@ private:
         BoneSubchain    chain;
         // The parent  bone of the chain
         BoneRef         baseBone;
+        // Solver that controls the chain
+        SolverPtr       solver;
     };
     using RootChainPtr = std::unique_ptr<RootChain>;
 
@@ -98,10 +100,6 @@ private:
     std::pair<bool, BoneRef> AddBone(const BoneDesc& description);
     // calculate positions for all bones in the current chain
     Vector CalculateBonePositions(RootChain& chain);
-
-    // Actual IK chain solvers
-    std::vector<SolverPtr>  m_solvers;
-
     // All full chains from root items to tip of the current chain
     std::vector<RootChainPtr> m_chains;
     // Full list of bones assigned to IK chains and their root elements
