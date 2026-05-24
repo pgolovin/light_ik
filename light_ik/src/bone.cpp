@@ -15,7 +15,15 @@
 namespace LightIK
 {
 
+const std::unique_ptr<ConstraintSolver> constraintSolvers[(size_t)ConstraintModes::Count] = 
+{
+    std::make_unique<ConstraintSolverXZY>(), 
+    std::make_unique<ConstraintSolverZXY>(),
+    std::make_unique<ConstraintSolverYXZ>(),
+};
+
 Bone::Bone()
+    : m_solver(std::ref(*constraintSolvers[0]))
 {
     m_initialRotation           = glm::identity<Quaternion>();
     m_rotation                  = glm::identity<Quaternion>();
@@ -26,6 +34,7 @@ Bone::Bone(real length, const Quaternion& orientation)
     : m_rotation(orientation)
     , m_initialRotation(orientation)
     , m_length(length, false)
+    , m_solver(std::ref(*constraintSolvers[0]))
 {
     m_globalOrientation         = glm::identity<Quaternion>();
 }
@@ -45,12 +54,16 @@ void Bone::SetGlobalOrientation(const Quaternion& orientation)
 void Bone::SetConstraints(Constraints && newConstraints)
 {
     m_constraints               = std::move(newConstraints);
+    m_solver                    = std::ref(*constraintSolvers[(size_t)m_constraints.mode]);
 }
 
-Quaternion Bone::ApplyConstraint(const Quaternion& rotation) const
+Quaternion Bone::ApplyConstraint(const Quaternion& inverseParent, const Quaternion& rotation) const
 {
-    Vector angles               = glm::clamp(Helpers::ToEulerXZY(rotation), m_constraints.minAngles, m_constraints.maxAngles);
-    return Helpers::FromEulerXZY(angles);
+    {
+        Vector angles           = m_solver.get().ToTaitBriant(inverseParent * rotation);
+        angles                  = glm::clamp(angles, m_constraints.minAngles, m_constraints.maxAngles);
+        return m_solver.get().FromTaitBriant(angles);
+    }
 }
 
 void Bone::Reset()

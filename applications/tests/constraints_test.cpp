@@ -214,11 +214,14 @@ TEST_F(BoneLookAtConstraintsTest, partially_blocked)
     ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0, 1, 1}), GetSolver().GetTipPosition()));
 }
 
-TEST_F(BoneLookAtConstraintsTest, sector_allowed)
+TEST_F(BoneLookAtConstraintsTest, sector_allowed_xzy)
 {
     Constraints constraints = { 1, 
         Vector{-glm::pi<real>()/4, 0, -glm::pi<real>()/4}, 
-        Vector{ glm::pi<real>()/4, 0,  glm::pi<real>()/4} };
+        Vector{ glm::pi<real>()/4, 0,  glm::pi<real>()/4},
+        ConstraintType::Local,
+        ConstraintModes::XZY
+    };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
     GetTarget().SetPosition(target);
@@ -227,6 +230,47 @@ TEST_F(BoneLookAtConstraintsTest, sector_allowed)
     // Constraints sequence XZY, so X gave the maximum angle, then Z, and the last one is Y. 
     // Thus we have the max X as sqrt(1/2), and the rest will equally divide the last distance, i think...
     ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{sqrt(0.5), 0.5, 0.5}), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, sector_allowed_zxy)
+{
+    Constraints constraints = { 1, 
+        Vector{-glm::pi<real>()/4, 0, -glm::pi<real>()/4}, 
+        Vector{ glm::pi<real>()/4, 0,  glm::pi<real>()/4},
+        ConstraintType::Local,
+        ConstraintModes::ZXY
+    };
+    GetSkeleton().SetConstraint(0, std::move(constraints));
+    Vector target {1, 0, 1};
+    GetTarget().SetPosition(target);
+    Step(1);
+
+    // Constraints sequence ZXY, so Z gave the maximum angle, then X, and the last one is Y. 
+    // Thus we have the max Z as sqrt(1/2), and the rest will equally divide the last distance, i think...
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{0.5, 0.5, sqrt(0.5)}), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, rotation_ccw)
+{
+    Constraints constraints = { 1 };
+    GetSkeleton().SetConstraint(0, std::move(constraints));
+    Vector target {1, 0, 1};
+    GetTarget().SetPosition(target);
+    Step(1);
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{sqrt(0.5), 0, sqrt(0.5)}), GetSolver().GetTipPosition()));
+}
+
+TEST_F(BoneLookAtConstraintsTest, rotation_cw)
+{
+    Constraints constraints = { 1 };
+    constraints.rotation = ConstraintRotation::CW;
+    GetSkeleton().SetConstraint(0, std::move(constraints));
+    Vector target {1, 0, 1};
+    GetTarget().SetPosition(target);
+    Step(1);
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(glm::normalize(Vector{sqrt(0.5), 0, sqrt(0.5)}), GetSolver().GetTipPosition()));
 }
 
 class BoneRotationConstraintsTest : public BoneLookAtConstraintsTest
@@ -342,5 +386,148 @@ TEST_F(BoneChainConstraintsTest, actual_tip_position_multistep)
     Vector tipPosition = direction * (real)8;
     ASSERT_TRUE(TestHelpers::CompareVectors(GetRoot() + tipPosition, GetSolver().GetTipPosition()));
 }
+
+class RootConstraintTest : public BoneChainConstraintsTest
+{
+public: 
+    void SetUp() override
+    {
+        std::vector<BoneDesc> descriptors = {
+            BoneDesc{glm::angleAxis(-glm::pi<real>()/4, Vector{1,0,0}),   glm::sqrt(2),  0},
+            BoneDesc{glm::angleAxis(glm::pi<real>()/4, Vector{1,0,0}),  glm::sqrt(2),  1},
+            BoneDesc{glm::identity<Quaternion>(),                        glm::sqrt(2),  2},
+        };
+
+        std::vector<int> rootStructure {0, 1, 2};
+        m_solvers.emplace_back(CreateSolver(descriptors, rootStructure, 1, m_target));
+
+        Constraints root  {1,   
+            {Helpers::Grad2Rad(-90.), 0, 0}, 
+            {Helpers::Grad2Rad( 90.), 0, 0}, 
+            ConstraintType::Local,
+            ConstraintModes::XZY
+        };
+        
+        GetSkeleton().SetConstraint(1, std::move(root));
+    }
+
+    SolverBase& GetSolver()                 { return m_solvers.front();}
+    TargetPosition& GetTarget()             { return m_target; }
+protected:
+    TargetPosition m_target;
+    std::vector<SolverRef> m_solvers;
+};
+
+TEST_F(RootConstraintTest, root_limitation_reachable)
+{
+    SolverBase& solver = GetSolver();
+    GetTarget().SetPosition(Vector(0, 1, 1));
+
+    GetSkeleton().Update(1);
+    GetSkeleton().FinalizeChains();
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(GetTarget().GetPosition(), solver.GetTipPosition()));
+}
+
+TEST_F(RootConstraintTest, root_limitation_unreachable)
+{
+    SolverBase& solver = GetSolver();
+    GetTarget().SetPosition(Vector(0, 1, 2));
+
+    GetSkeleton().Update(1);
+    GetSkeleton().FinalizeChains();
+
+    ASSERT_FALSE(TestHelpers::CompareVectors(GetTarget().GetPosition(), solver.GetTipPosition()));
+}
+
+
+class ComplexRotationsTest : public BoneRotationConstraintsTest
+{
+public: 
+    void SetUp() override
+    {
+    }
+
+    void ConstructSkeleton(std::vector<int> startIndices)
+    {
+        std::vector<BoneDesc> descriptors ={
+            BoneDesc{Quaternion(  0.5,   0.5,   0.5,   -0.5),     1, 0},            
+            BoneDesc{Quaternion(0.707, 0.707,   0.0,      0),   2.5, 1},
+            BoneDesc{glm::identity<Quaternion>(),                 2, 2},
+            BoneDesc{glm::identity<Quaternion>(),               0.5, 3},
+            BoneDesc{Quaternion{0.707,     0,     0,  0.707},   0.7, 4},
+            BoneDesc{glm::identity<Quaternion>(),               0.3, 5},
+        };
+
+        std::vector<int> rootStructure {0, 1, 2, 3, 4, 5};
+
+        // TODO create global constraint and put it here
+        m_solvers.emplace_back(CreateSolver(descriptors, rootStructure, startIndices[0], m_target));
+    }
+
+    void ApplyConstraints()
+    {
+        Constraints knee  {1, {0, 0, -170/180.*glm::pi<real>()}, {0, 0, 0}, ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CW};
+        Constraints rotor {1, {0, -20/180.*glm::pi<real>(), 0}, {0, 20/180.*glm::pi<real>(), 0}, ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+        Constraints foot  {1, {0, 0, 25/180.*glm::pi<real>()}, {0, 0, 90/180.*glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+        Constraints thumb {1, {0, 0, -20/180.*glm::pi<real>()}, {0, 0, 20/180.*glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+        GetSkeleton().SetConstraint(2, std::move(knee));
+        GetSkeleton().SetConstraint(3, std::move(rotor));
+        GetSkeleton().SetConstraint(4, std::move(foot));
+        GetSkeleton().SetConstraint(5, std::move(thumb));
+    }
+
+    std::vector<SolverRef>& GetSolvers()    { return m_solvers;}
+    TargetPosition& GetTarget()             { return m_target; }
+protected:
+    TargetPosition m_target;
+    std::vector<SolverRef> m_solvers;
+};
+
+TEST_F(ComplexRotationsTest, structure)
+{
+    ConstructSkeleton({0});
+    auto& bones = GetSkeleton().GetBones();
+    std::vector<Vector> positions = {
+        Vector{0,0,0},
+        {1,    0,     0},
+        {1, -2.5,     0},
+        {1, -4.5,     0},
+        {1,   -5,     0},
+        {1,   -5,   0.7},
+    };
+    for (size_t i = 0; i < positions.size(); ++i)
+    {
+        ASSERT_TRUE(TestHelpers::CompareVectors(positions[i], bones[i]->GetPosition(), 0.01)) << i << "th  position is wrong";
+    }
+}
+
+TEST_F(ComplexRotationsTest, unlimited_rotations)
+{
+    ConstructSkeleton({0});
+    GetTarget().SetPosition({1, -7, 0});
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        GetSkeleton().Update(1);
+    }
+
+    ASSERT_TRUE(TestHelpers::CompareDirections({1, -7, 0}, GetSolvers().at(0).get().GetTipPosition()));    
+}
+
+TEST_F(ComplexRotationsTest, constrained_rotation)
+{
+    ConstructSkeleton({1});
+    ApplyConstraints();
+    GetTarget().SetPosition({1, -4, 0});
+
+    for (size_t i = 0; i < 5; ++i)
+    {
+        GetSkeleton().Update(1);
+    }
+
+    ASSERT_TRUE(TestHelpers::CompareVectors({1, -4, -0}, GetSolvers().at(0).get().GetTipPosition()));    
+}
+
 
 };

@@ -13,6 +13,7 @@ namespace LightIK
 {
 
 class SolverBase;
+struct ConstraintSolver;
 
 class Bone
 {
@@ -37,7 +38,7 @@ public:
     const Constraints& GetConstraints() const       { return m_constraints;         }
 
     // Apply constraints on local rotation, to update it and prevent the bone to overcome its limitations
-    Quaternion ApplyConstraint(const Quaternion& rotation) const;
+    Quaternion ApplyConstraint(const Quaternion& inverseParent, const Quaternion& rotation) const;
 
     // Global position of the bone in the system associated with the root bone
     void SetPosition(const Vector& position)        { m_position = position;        }
@@ -61,6 +62,8 @@ private:
 
     // index of the bone, if index is negative the bone does not exists
     SolverBase* m_owner = nullptr;
+
+    std::reference_wrapper<ConstraintSolver> m_solver;
 };
 
 using BonePtr       = std::unique_ptr<Bone>;

@@ -38,15 +38,27 @@ public:
     void   Execute() override;
     
 private:
-    void                    LookAt(const Vector& initialDirection, const Vector& target);
-    Vector                  SolveBinaryJoint(Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
-    std::pair<real, real>   CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
+    struct ChainData
+    {
+        Vector tip {0,0,0};
+        Quaternion cumulativeRotation;
+        Quaternion rootRotation;
+    };
+    void                    LookAt(ChainData& chainData, const Vector& target);
+    void                    SolveBinaryJoint(ChainData& chainData, Bone& rootBone, Quaternion& rootPositionInv, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
+ 
+    struct JointAngles
+    {
+        real chord  = 0;
+        real root   = 0;
+    };
+
+    JointAngles             CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
     
     const Bone&             m_parentBone;
     BoneSubchain            m_chain;   // bones chain
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
     Target&                 m_target;
-    Quaternion              m_cumulativeRotation;
     bool                    m_hasDependencies = false;
 };
 

@@ -13,6 +13,7 @@ using Vector2       = glm::vec<2, real, glm::highp>;
 using Vector4       = glm::vec<4, real, glm::highp>;
 using Matrix        = glm::mat<3, 3, real, glm::highp>;
 using Matrix3       = glm::mat<3, 3, real, glm::highp>;
+using Matrix4       = glm::mat<4, 4, real, glm::highp>;
 using Quaternion    = glm::qua<real, glm::highp>;
 
 static const real EPSILON   = 1e-14;
@@ -76,12 +77,39 @@ struct Length
     real base      = 0.f;       // initial length
     real stretch   = 0.f;       // extension factor. if 0 bone has fixed length
 };
+
+enum class ConstraintType
+{
+    Local,
+    Global,
+    Count
+};
+
+enum class ConstraintModes
+{
+    XZY,
+    ZXY,
+    YXZ,
+    Count
+};
+
+enum class ConstraintRotation
+{
+    CW  = -1,
+    CCW =  1,
+    Count
+};
     
 struct Constraints
 {
-    real flexibility = 1;
-    Vector minAngles {-glm::pi<real>(), -glm::pi<real>(), -glm::pi<real>()};
-    Vector maxAngles { glm::pi<real>(),  glm::pi<real>(),  glm::pi<real>()};
+    real flexibility            {1.};
+    Vector minAngles            {-glm::pi<real>(), -glm::pi<real>(), -glm::pi<real>()};
+    Vector maxAngles            { glm::pi<real>(),  glm::pi<real>(),  glm::pi<real>()};
+
+    ConstraintType  type        {ConstraintType::Local};
+    ConstraintModes mode        {ConstraintModes::XZY};
+    ConstraintRotation rotation {ConstraintRotation::CCW};
+    
 };
 
 }

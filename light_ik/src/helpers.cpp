@@ -106,13 +106,14 @@ namespace LightIK
 
     // Calculate Tait-Bryan angles calculatation in non-standard seqence: XZY
     //
-    // The reference GT, conversion to matrix and extraction of angles
-    // auto testMatrix = glm::mat4_cast(q);
-    // Vector ref;
-    // glm::extractEulerAngleXZY(testMatrix, ref.x, ref.z, ref.y);
 
-    Vector Helpers::ToEulerXZY(const Quaternion& q)
+
+    Vector ConstraintSolverXZY::ToTaitBriant(const Quaternion& q)
     { 
+        // TODO: need to prove that manual calculation is faster than standard glm
+        // auto testMatrix = glm::mat4_cast(q);
+        // Vector ref;
+        // glm::extractEulerAngleXZY(testMatrix, ref.x, ref.z, ref.y);
         Vector result = {0, 0, glm::asin(glm::clamp((real)(2) * (q.w * q.z - q.x * q.y), (real)-1, (real)1))};
 
         // calculate X and Y angles
@@ -135,14 +136,7 @@ namespace LightIK
     }
 
     // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
-    // 
-    // The referenced GT:
-    // Quaternion x = glm::angleAxis(angles.x, Vector{1, 0, 0});
-    // Quaternion y = glm::angleAxis(angles.y, Vector{0, 1, 0});
-    // Quaternion z = glm::angleAxis(angles.z, Vector{0, 0, 1});
-    // return ref = ((x * z) * y);
-
-    Quaternion Helpers::FromEulerXZY(const Vector& angles)
+    Quaternion ConstraintSolverXZY::FromTaitBriant(const Vector& angles)
     {
         const Vector s = glm::sin(angles * (real)0.5);
         const Vector c = glm::cos(angles * (real)0.5);
@@ -155,5 +149,52 @@ namespace LightIK
             (c.x * c.y * s.z) + (s.x * s.y * c.z)
         };
     }
+    
+    Vector ConstraintSolverZXY::ToTaitBriant(const Quaternion& q)
+    { 
+        Matrix4 m = glm::mat4_cast(q);
+        Vector result {0,0,0};
+        glm::extractEulerAngleZXY(m, result.z, result.x, result.y);
+        
+        return result;
+    }
 
+    // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
+    Quaternion ConstraintSolverZXY::FromTaitBriant(const Vector& angles)
+    {
+        const Vector s = glm::sin(angles * (real)0.5);
+        const Vector c = glm::cos(angles * (real)0.5);
+        // calculate multiplication of 3 quaternions for each euler angle in sequence YXZ
+        // Q = Qz * Qx * Qy
+        return Quaternion{
+            (c.x * c.y * c.z) - (s.x * s.y * s.z),
+            (s.x * c.y * c.z) - (c.x * s.y * s.z),
+            (c.x * s.y * c.z) + (s.x * c.y * s.z),
+            (c.x * c.y * s.z) + (s.x * s.y * c.z)
+        };
+    }
+
+    Vector ConstraintSolverYXZ::ToTaitBriant(const Quaternion& q)
+    { 
+        Matrix4 m = glm::mat4_cast(q);
+        Vector result {0,0,0};
+        glm::extractEulerAngleYXZ(m, result.z, result.x, result.y);
+        
+        return result;
+    }
+
+    // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
+    Quaternion ConstraintSolverYXZ::FromTaitBriant(const Vector& angles)
+    {
+        const Vector s = glm::sin(angles * (real)0.5);
+        const Vector c = glm::cos(angles * (real)0.5);
+        // calculate multiplication of 3 quaternions for each euler angle in sequence YXZ
+        // Q = Qy * Qz * Qx
+        return Quaternion{
+            (c.x * c.y * c.z) - (s.x * s.y * s.z),
+            (c.x * s.y * c.z) - (s.x * c.y * s.z),
+            (s.x * c.y * c.z) + (c.x * s.y * s.z),
+            (c.x * c.y * s.z) + (s.x * s.y * c.z)
+        };
+    }
 }
