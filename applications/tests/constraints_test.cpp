@@ -440,7 +440,6 @@ TEST_F(RootConstraintTest, root_limitation_unreachable)
     ASSERT_FALSE(TestHelpers::CompareVectors(GetTarget().GetPosition(), solver.GetTipPosition()));
 }
 
-
 class ComplexRotationsTest : public BoneRotationConstraintsTest
 {
 public: 
@@ -529,5 +528,78 @@ TEST_F(ComplexRotationsTest, constrained_rotation)
     ASSERT_TRUE(TestHelpers::CompareVectors({1, -4, -0}, GetSolvers().at(0).get().GetTipPosition()));    
 }
 
+class PivotBoneTest : public BoneRotationConstraintsTest
+{
+public: 
+    void SetUp() override
+    {
+    }
+
+    void ConstructSkeleton()
+    {
+        std::vector<BoneDesc> descriptors ={
+            BoneDesc{glm::angleAxis(glm::pi<real>()/2, Vector(1,0,0)),     1, 0},
+            BoneDesc{glm::angleAxis(glm::pi<real>()/2, Vector(1,0,0)),     2, 1},
+            BoneDesc{glm::identity<Quaternion>(),                          2, 2},
+        };
+
+        std::vector<int> rootStructure {0, 1, 2};
+        // TODO create global constraint and put it here
+        m_solvers.emplace_back(CreateSolver(descriptors, rootStructure, 0, m_target));
+    }
+
+    void ApplyConstraints()
+    {
+        Constraints root  {1, {glm::pi<real>()/2, 0, 0}, {glm::pi<real>(), 0, 0}, ConstraintType::Local, ConstraintModes::XZY, ConstraintRotation::CCW};
+        Constraints pivot {1, {glm::pi<real>()/2, 0, -glm::pi<real>()/2}, {glm::pi<real>()/2, 0, glm::pi<real>()/2}, ConstraintType::Local, ConstraintModes::XZY, ConstraintRotation::CCW};
+        Constraints knee  {1, {0, 0, -glm::pi<real>()},  {0, 0, glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+
+        GetSkeleton().SetConstraint(0, std::move(root));
+        GetSkeleton().SetConstraint(1, std::move(pivot));
+        GetSkeleton().SetConstraint(2, std::move(knee));
+    }
+
+    std::vector<SolverRef>& GetSolvers()    { return m_solvers;}
+    TargetPosition& GetTarget()             { return m_target; }
+protected:
+    TargetPosition m_target;
+    std::vector<SolverRef> m_solvers;
+};
+
+TEST_F(PivotBoneTest, structure)
+{
+    ConstructSkeleton();
+    ApplyConstraints();
+    auto& bones = GetSkeleton().GetBones();
+    std::vector<Vector> positions = {
+        Vector{0,0,0},
+        {0,    0,     1},
+        {0,   -2,     1},
+    };
+    for (size_t i = 0; i < positions.size(); ++i)
+    {
+        ASSERT_TRUE(TestHelpers::CompareVectors(positions[i], bones[i]->GetPosition(), 0.01)) << i << "th  position is wrong";
+    }
+}
+
+TEST_F(PivotBoneTest, tip)
+{
+    ConstructSkeleton();
+    ApplyConstraints();
+    ASSERT_TRUE(TestHelpers::CompareVectors(Vector{0, -4, 1}, GetSolvers().at(0).get().GetTipPosition(), 0.000001));
+}
+
+TEST_F(PivotBoneTest, rotation)
+{
+    Vector target = {0, -2, 1};
+    ConstructSkeleton();
+    ApplyConstraints();
+
+    GetTarget().SetPosition(target);
+
+    Step(1);
+
+    ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolvers().at(0).get().GetTipPosition(), 0.000001));
+}
 
 };

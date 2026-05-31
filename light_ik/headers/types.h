@@ -17,6 +17,7 @@ using Matrix4       = glm::mat<4, 4, real, glm::highp>;
 using Quaternion    = glm::qua<real, glm::highp>;
 
 static const real EPSILON   = 1e-14;
+static const real TOLERANCE = 1e-7;
 
 constexpr bool EnableDebugLogging = true;
 

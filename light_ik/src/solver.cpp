@@ -123,23 +123,15 @@ void Solver::SolveBinaryJoint(ChainData& chainData, Bone& baseBone, Quaternion& 
     Length lengthTip(glm::length2(tip));
     // Calculate angles required to reach the target with current binary joint
     auto rawAngles                  = CalculateAngles(lengthRoot, lengthTip, {glm::dot(target, x), glm::dot(target, y)});
-    // Identify initial rotation direction. this should be calculated ONLY if the bone in stright position
-    //  i.e. oriented directly on Y axis, Q = (0,0,0,1)
-    real rotationDirection          = (1. - bone.GetRotation().w < EPSILON) ? (real)(constraint.rotation) : 1.;
+    
     // Calculate the set of base angles
-    real angleRoot                  = rawAngles.chord + rotationDirection * rawAngles.root;
+    Quaternion rootRotation         = CalculateRootRotation(rawAngles.chord + rawAngles.root, chainData, z, baseBone);
 
-    // Calculate modifications for the chain root
-    Quaternion rootRotation         = glm::angleAxis((glm::pi<real>() / (real)2.0) - angleRoot, z); 
-
-    // Calculate full rotation of the root bone according to all available root constraints
-    // TODO: root rotation is the rotation between base orientation and current for major root bone, need a DELTA
-    //  between position calculated for previous bone in current iterration and current bone
-    //  Currently this formula return global rotation of the baseBone
-    Quaternion cumulativeRotation   = rootRotation * chainData.cumulativeRotation * chainData.rootRotation;
-    Quaternion baseRootAngle        = chainData.cumulativeRotation * chainData.rootRotation;
-    rootRotation                    = baseBone.ApplyConstraint(glm::identity<Quaternion>(), cumulativeRotation);
-    rootRotation                    = rootRotation * glm::inverse(baseRootAngle);
+    // Check if rotation is performed, if not try to rotate bone in opposite direction
+    if (1 - rootRotation.w < EPSILON)
+    {
+        rootRotation                = CalculateRootRotation(rawAngles.chord - rawAngles.root, chainData, z, baseBone);
+    }
 
     // Rotate whole chain according to root rotation to calculate relative tip rotation angle.
     Vector newRoot                  = (rootRotation * y) * lengthRoot.l;
@@ -157,6 +149,7 @@ void Solver::SolveBinaryJoint(ChainData& chainData, Bone& baseBone, Quaternion& 
     auto childOrientation           = chainData.cumulativeRotation * bone.GetGlobalOrientation();
     
     // Applying constraints for the child bone
+    tipRotation                     = glm::slerp(glm::identity<Quaternion>(), tipRotation, constraint.flexibility);
     auto childRotation              = tipRotation * childOrientation;
     childRotation                   = bone.ApplyConstraint(glm::inverse(parentOrientation), childRotation);
     bone.SetRotation(childRotation); 
@@ -187,6 +180,19 @@ Solver::JointAngles Solver::CalculateAngles(const Length& root, const Length& ti
     angles.root             = lbsq > EPSILON ? glm::acos(glm::clamp((root.l2 - tip.l2 + lbsq) / (2 * root.l * chordLength), (real)-1., (real)1.)) : 0;
 
     return angles;    
+}
+
+Quaternion Solver::CalculateRootRotation(real angleRoot, const ChainData& chainData, const Vector& z, const Bone& baseBone)
+{
+    // Calculate modifications for the chain root
+    Quaternion rootRotation         = glm::angleAxis((glm::pi<real>() / (real)2.0) - angleRoot, z); 
+
+    // Calculate full rotation of the root bone according to all available root constraints
+    Quaternion baseRootAngle        = chainData.cumulativeRotation * chainData.rootRotation;
+    rootRotation                    = glm::slerp(glm::identity<Quaternion>(), rootRotation, baseBone.GetConstraints().flexibility);
+    rootRotation                    = baseBone.ApplyConstraint(glm::identity<Quaternion>(), rootRotation * baseRootAngle);
+
+    return rootRotation * glm::inverse(baseRootAngle);
 }
 
 }

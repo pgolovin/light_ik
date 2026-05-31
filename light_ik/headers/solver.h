@@ -46,7 +46,7 @@ private:
     };
     void                    LookAt(ChainData& chainData, const Vector& target);
     void                    SolveBinaryJoint(ChainData& chainData, Bone& rootBone, Quaternion& rootPositionInv, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
- 
+    
     struct JointAngles
     {
         real chord  = 0;
@@ -54,7 +54,8 @@ private:
     };
 
     JointAngles             CalculateAngles(const Length& root, const Length& tip, Vector2 chord) const;
-    
+    Quaternion              CalculateRootRotation(real angle, const ChainData& chainData, const Vector& z, const Bone& baseBone);
+
     const Bone&             m_parentBone;
     BoneSubchain            m_chain;   // bones chain
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
