@@ -176,9 +176,8 @@ namespace LightIK
 
     Vector ConstraintSolverYXZ::ToTaitBriant(const Quaternion& q)
     { 
-        Matrix4 m = glm::mat4_cast(q);
         Vector result {0,0,0};
-        glm::extractEulerAngleYXZ(m, result.z, result.x, result.y);
+        glm::extractEulerAngleYXZ(glm::mat4_cast(q), result.y, result.x, result.z);
         
         return result;
     }
@@ -189,12 +188,50 @@ namespace LightIK
         const Vector s = glm::sin(angles * (real)0.5);
         const Vector c = glm::cos(angles * (real)0.5);
         // calculate multiplication of 3 quaternions for each euler angle in sequence YXZ
+        // Q = Qy * Qx * Qz
+        return Quaternion{
+            (c.x * c.y * c.z) + (s.x * s.y * s.z),
+            (s.x * c.y * c.z) + (c.x * s.y * s.z),
+            (c.x * s.y * c.z) - (s.x * c.y * s.z),
+            (c.x * c.y * s.z) - (s.x * s.y * c.z)
+        };
+    }
+
+    Vector ConstraintSolverYZX::ToTaitBriant(const Quaternion& q)
+    { 
+        Vector result {0,0,0};
+        glm::extractEulerAngleYZX( glm::mat4_cast(q), result.y, result.z, result.x);
+        
+        return result;
+    }
+
+    // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
+    Quaternion ConstraintSolverYZX::FromTaitBriant(const Vector& angles)
+    {
+        const Vector s = glm::sin(angles * (real)0.5);
+        const Vector c = glm::cos(angles * (real)0.5);
+        // calculate multiplication of 3 quaternions for each euler angle in sequence YXZ
         // Q = Qy * Qz * Qx
         return Quaternion{
             (c.x * c.y * c.z) - (s.x * s.y * s.z),
-            (c.x * s.y * c.z) - (s.x * c.y * s.z),
-            (s.x * c.y * c.z) + (c.x * s.y * s.z),
-            (c.x * c.y * s.z) + (s.x * s.y * c.z)
+            (s.x * c.y * c.z) - (c.x * s.y * s.z),
+            (c.x * s.y * c.z) + (s.x * c.y * s.z),
+            (c.x * c.y * s.z) - (s.x * s.y * c.z)
         };
+    }
+
+    
+    Vector ConstraintSolverXYZ::ToTaitBriant(const Quaternion& q)
+    { 
+        //Vector result {0,0,0};
+        //;
+        
+        return glm::eulerAngles(q);
+    }
+
+    // Calculate quaternion from Tait-Bryaint angles directly without applying heavy triple q multiplication
+    Quaternion ConstraintSolverXYZ::FromTaitBriant(const Vector& angles)
+    {
+        return Quaternion{angles};
     }
 }

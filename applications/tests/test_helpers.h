@@ -44,10 +44,12 @@ public:
             || glm::abs(glm::abs(result.z - reference.z)) > TestTolerance
             || glm::abs(glm::abs(result.w - reference.w)) > TestTolerance )
         {
-            return testing::AssertionFailure() << "Result mismatch. Expected (" 
-                << (float)reference.x << ", " << (float)reference.y << ", " << (float)reference.z << ", " << (float)reference.w 
-                << ") VS (" 
-                << (float)result.x << ", " << (float)result.y << ", " << (float)result.z << ", " << (float)result.w << ")";
+            return testing::AssertionFailure()
+            << "Result mismatch:" << std::endl 
+            << "x = " << (float)reference.x << " VS " << (float)result.x << std::endl 
+            << "y = " << (float)reference.y << " VS " << (float)result.y << std::endl
+            << "z = " << (float)reference.z << " VS " << (float)result.z << std::endl
+            << "w = " << (float)reference.w << " VS " << (float)result.w << std::endl;
         }
         return testing::AssertionSuccess();
     }

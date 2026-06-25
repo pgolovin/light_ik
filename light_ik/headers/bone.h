@@ -27,6 +27,7 @@ public:
 
     // Local orientation of the bone in the sustem assotiated with the parent bone
     void SetRotation(const Quaternion& rotation);
+    Quaternion CalculateConstraintRotation(const Quaternion& rotation) const;
     const Quaternion& GetRotation() const           { return m_rotation;            }
 
     // Geometric data of the bone
@@ -56,6 +57,17 @@ private:
     Length      m_length;
 
     Constraints m_constraints;
+
+    real        m_minXLimit     = 1.;
+    real        m_maxXLimit     = 1.;
+    real        m_minZLimit     = 1.;
+    real        m_maxZLimit     = 1.;
+    real        m_minTwist      = -1.;
+    real        m_maxTwist      = 1.;
+    real        m_centerX       = 0;
+    real        m_centerZ       = 0;
+    bool        m_unlockedX     = true;
+    bool        m_unlockedZ     = true;
 
     // position of the bone joint
     Vector      m_position = Vector(0,0,0);

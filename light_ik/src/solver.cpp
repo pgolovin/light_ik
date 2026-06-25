@@ -15,10 +15,11 @@
 namespace LightIK
 {
 
-Solver::Solver(BoneSubchain&& chain, const Bone& parentBone, Target& target)
+Solver::Solver(BoneSubchain&& chain, const Bone& parentBone, size_t pivotIndexInChain, Target& target)
     : m_chain(std::move(chain))
     , m_target(target)
     , m_parentBone(parentBone)
+    , m_pivotBoneIndex(pivotIndexInChain)
 {
     assert(m_chain.size());
     
@@ -52,7 +53,7 @@ Vector Solver::GetTipPosition() const
 void Solver::LookAt(ChainData& chainData, const Vector& target)
 {
     // look at
-    if (glm::length2(target) > EPSILON)
+    if (glm::length2(target) > EPSILON && glm::length2(chainData.tip) > EPSILON)
     {
         chainData.cumulativeRotation = 
             Helpers::CalculateRotation(glm::normalize(chainData.tip), glm::normalize(target)) * chainData.cumulativeRotation;
@@ -66,21 +67,54 @@ void Solver::Execute()
     {
         return;
     }
-    Bone& rootBone          = m_chain.front();
+    
+    // Check if chain consists of two subchains, i.e. has a pivot joint. 
+    // if a pivot joint is available, the first subchain performs rotations from the pivot to the tip
+    const Bone& parent  = m_pivotBoneIndex ? m_chain[m_pivotBoneIndex - 1] : m_parentBone;
+    Bone& pivotBone     = m_chain.at(m_pivotBoneIndex);
+    ChainData chainData = SolveSubchain(parent, pivotBone, m_chain.size() - 1, m_pivotBoneIndex);
+    // If pivot is available, then the fist subchain will be calculated uisng pre-pivot joints, and the whole chain tip
+    if (m_pivotBoneIndex)
+    {
+        Quaternion baseCumulativeRotation   = chainData.cumulativeRotation * pivotBone.GetRotation();
+        Vector target                       = m_target.GetPosition() - pivotBone.GetPosition();
+        LookAt(chainData, target);
+        // finalize rotation of the pivot bone 
+        //Quaternion finalAngle = pivotBone.ApplyConstraint(glm::identity<Quaternion>(), chainData.cumulativeRotation * pivotBone.GetRotation());
+        Quaternion finalAngle = pivotBone.CalculateConstraintRotation(chainData.cumulativeRotation * pivotBone.GetRotation());
+        pivotBone.SetRotation(finalAngle);
+
+        // calculate new tip position based on LookAt orientation of the pivot bone
+        Quaternion tipRotation = finalAngle * glm::inverse(baseCumulativeRotation);
+        
+        m_tipPosition   = (tipRotation * chainData.tip) + pivotBone.GetPosition();
+        chainData       = SolveSubchain(m_parentBone, m_chain.front(), m_pivotBoneIndex - 1, 0);
+    }
+
+    Bone& rootBone      = m_chain.front();
+    // Final step, the chain might not reach the final di rection, due to joint stiffness
+    // do the final rotation of the root bone (if possible)
+    Vector target       = m_target.GetPosition() - rootBone.GetPosition();
+    LookAt(chainData, target);
+
+    // Applying final constraints for the root bone
+    auto parentOrientationInv  = glm::inverse(m_parentBone.GetGlobalOrientation());
+    // Quaternion finalAngle = rootBone.ApplyConstraint(glm::identity<Quaternion>(), chainData.cumulativeRotation * rootBone.GetRotation());
+    
+    Quaternion finalAngle = rootBone.CalculateConstraintRotation(chainData.cumulativeRotation * rootBone.GetRotation());
+    rootBone.SetRotation(finalAngle); 
+}
+
+Solver::ChainData Solver::SolveSubchain(const Bone& parentBone, Bone& rootBone, size_t tail, size_t base)
+{
     // Assume distance to target is reachable
     Vector target           = m_target.GetPosition() - rootBone.GetPosition();
 
-    ChainData chainData {
-        m_tipPosition - rootBone.GetPosition(),
-        glm::identity<Quaternion>(),
-        rootBone.GetRotation()
-    };    
+    // Construct base parameters of the current sub chain
+    ChainData chainData { m_tipPosition - rootBone.GetPosition(), glm::identity<Quaternion>(), rootBone.GetRotation()};    
     
     // Calculate relative rotation of the current bone according to the orienation of its parent bone
-    auto parentOrientationInv  = glm::inverse(m_parentBone.GetGlobalOrientation());
-    //auto rootOrientation       = rootBone.GetGlobalOrientation();
-
-    for (size_t i = m_chain.size() - 1; i > 0; --i)
+    for (size_t i = tail; i > base; --i)
     {
         // rotate the root part of the chain according to the accumulated rotations
         Vector currentJoint = chainData.cumulativeRotation * (m_chain[i].get().GetPosition() -  rootBone.GetPosition());
@@ -91,16 +125,10 @@ void Solver::Execute()
             // if arm length is equal to 0, the step cannot provide any position change, skip it;
             continue;
         }
-        SolveBinaryJoint(chainData, rootBone, parentOrientationInv, m_chain[i], m_chain[i - 1], currentJoint, tip, target);
+        SolveBinaryJoint(chainData, rootBone, m_chain[i], m_chain[i - 1], currentJoint, tip, target);
     }
-    
-    // final step, the chain might not reach the final direction, due to joint stiffness
-    // do the final rotation of the root bone (if possible)
-    LookAt(chainData, target);
-    
-    // Applying final constraints for the root bone
-    Quaternion finalAngle = rootBone.ApplyConstraint(parentOrientationInv, chainData.cumulativeRotation * rootBone.GetGlobalOrientation());
-    rootBone.SetRotation(finalAngle); 
+
+    return chainData;
 }
 
 bool Solver::TargetReached() const
@@ -108,12 +136,12 @@ bool Solver::TargetReached() const
     return glm::length2(m_tipPosition - m_target.GetPosition()) < EPSILON;
 }
 
-void Solver::SolveBinaryJoint(ChainData& chainData, Bone& baseBone, Quaternion& baseRotationInv, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target)
+void Solver::SolveBinaryJoint(ChainData& chainData, Bone& baseBone, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target)
 {
     // Position local coordinate system to have root bone aligned with Y axis and with target forms XoY plane.
     // Make the working plane, the plane made by 2 vectors: initial arm and vector to target
     const Vector y                  = glm::normalize(root);
-    const Vector z                  = Helpers::Normal(y, glm::normalize(target));
+    const Vector z                  = Helpers::Normal(y, glm::length2(target) > EPSILON ? glm::normalize(target) : Helpers::DefaultAxis());
     const Vector x                  = glm::normalize(glm::cross(z, y));
 
     auto& constraint                = bone.GetConstraints();
@@ -149,9 +177,10 @@ void Solver::SolveBinaryJoint(ChainData& chainData, Bone& baseBone, Quaternion& 
     auto childOrientation           = chainData.cumulativeRotation * bone.GetGlobalOrientation();
     
     // Applying constraints for the child bone
-    tipRotation                     = glm::slerp(glm::identity<Quaternion>(), tipRotation, constraint.flexibility);
+    //tipRotation                     = glm::slerp(glm::identity<Quaternion>(), tipRotation, constraint.flexibility);
     auto childRotation              = tipRotation * childOrientation;
-    childRotation                   = bone.ApplyConstraint(glm::inverse(parentOrientation), childRotation);
+    //childRotation                   = bone.ApplyConstraint(glm::inverse(parentOrientation), childRotation);
+    childRotation                   = bone.CalculateConstraintRotation(glm::inverse(parentOrientation) * childRotation);
     bone.SetRotation(childRotation); 
 
     // recalculate tip rotation and target position according to constraints of the child bone
@@ -190,7 +219,8 @@ Quaternion Solver::CalculateRootRotation(real angleRoot, const ChainData& chainD
     // Calculate full rotation of the root bone according to all available root constraints
     Quaternion baseRootAngle        = chainData.cumulativeRotation * chainData.rootRotation;
     rootRotation                    = glm::slerp(glm::identity<Quaternion>(), rootRotation, baseBone.GetConstraints().flexibility);
-    rootRotation                    = baseBone.ApplyConstraint(glm::identity<Quaternion>(), rootRotation * baseRootAngle);
+    //rootRotation                    = baseBone.ApplyConstraint(glm::identity<Quaternion>(), rootRotation * baseRootAngle);
+    rootRotation                    = baseBone.CalculateConstraintRotation(rootRotation * baseRootAngle);
 
     return rootRotation * glm::inverse(baseRootAngle);
 }

@@ -29,7 +29,7 @@ TEST(LightIKTest, movement_returns_true)
     TargetPosition target({2,0,0});
     size_t chainIndex = library->CreateIKChain({
         BoneDesc{glm::identity<Quaternion>(), 1, 0},
-        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0, target);
+        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0, 0, target);
 
     ASSERT_EQ(1, library->Update());
 };
@@ -40,7 +40,7 @@ TEST(LightIKTest, no_movement_returns_false)
     TargetPosition target({0,2,0});
     size_t chainIndex = library->CreateIKChain({
         BoneDesc{glm::identity<Quaternion>(), 1, 0},
-        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0, target);
+        BoneDesc{glm::identity<Quaternion>(), 1, 1}}, 0, 0, target);
 
     ASSERT_EQ(0, library->Update());
 };
@@ -63,7 +63,7 @@ protected:
     void BuildChain(const std::vector<Vector>& chain, size_t index)
     {
         auto descriptors = ConstructDescriptors(chain);
-        GetLibrary().CreateIKChain(descriptors, index, m_target);
+        GetLibrary().CreateIKChain(descriptors, index, 0, m_target);
     }
 
     Vector ReconstructBoneChain()
@@ -271,7 +271,7 @@ public:
         {
             rootDescriptors.emplace_back(descriptors[index]);
         }
-        GetLibrary().CreateIKChain(rootDescriptors, 0, m_spineTarget);
+        GetLibrary().CreateIKChain(rootDescriptors, 0, 0, m_spineTarget);
         
         std::vector<int> passiveChain {0, 1, 2, 3, 7, 8};
         std::vector<BoneDesc> passiveDescriptors;
@@ -287,7 +287,7 @@ public:
         {
             branchDescriptors.emplace_back(descriptors[index]);
         }
-        GetLibrary().CreateIKChain(branchDescriptors, 5, m_boneTarget);
+        GetLibrary().CreateIKChain(branchDescriptors, 5, 0, m_boneTarget);
         m_boneTarget.AssignBone(8);
     }
 

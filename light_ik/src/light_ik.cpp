@@ -37,10 +37,10 @@ void LightIK::Reset()
     m_skeleton->ResetIK();
 }
 
-size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, Target& target)
+size_t LightIK::CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, int pivotIndex, Target& target)
 {
     size_t index = m_solvers.size();
-    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, target));
+    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, pivotIndex, target));
     for (const BoneDesc& desc : rootChainDesc)
     {
         Bone* bone = m_skeleton->GetBones()[desc.boneIndex].get();
@@ -54,7 +54,7 @@ size_t LightIK::CreateIKLink(const std::vector<BoneDesc>& rootChainDesc, int cha
     size_t index = m_solvers.size();
     std::unique_ptr<TargetBone> bone = std::make_unique<TargetBone>(*m_skeleton);
     bone->AssignBone(targetBoneIndex);
-    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, *bone));
+    m_solvers.emplace_back(m_skeleton->AddSolver(rootChainDesc, chainStartIndex, 0, *bone));
     m_targets.emplace_back(std::move(bone));
 
     for (const BoneDesc& desc : rootChainDesc)

@@ -109,8 +109,8 @@ public:
         std::vector<int> passiveChain {0, 1, 2, 3, 7, 8};
 
         std::vector<SolverRef> solvers;
-        solvers.emplace_back(CreateSolver(descriptors, rootStructure, 0, m_spineTarget));
-        solvers.emplace_back(CreateSolver(descriptors, branchStructure, 5, m_boneTarget));
+        solvers.emplace_back(CreateSolver(descriptors, rootStructure, 0, 0, m_spineTarget));
+        solvers.emplace_back(CreateSolver(descriptors, branchStructure, 5, 0, m_boneTarget));
         solvers.emplace_back(*CreatePassiveChain(descriptors, passiveChain));
 
         return solvers;
@@ -173,10 +173,10 @@ public:
         std::vector<int> passiveChain {0, 8, 9, 10};
 
         std::vector<SolverRef> solvers;
-        solvers.emplace_back(CreateSolver(descriptors, rootStructure, 1, m_spineTarget));
+        solvers.emplace_back(CreateSolver(descriptors, rootStructure, 1, 0, m_spineTarget));
         solvers.emplace_back(*CreatePassiveChain(descriptors, passiveChain));
         m_boneTarget.AssignBone(10);
-        solvers.emplace_back(CreateSolver(descriptors, branchStructure, 7, m_boneTarget));
+        solvers.emplace_back(CreateSolver(descriptors, branchStructure, 7, 0, m_boneTarget));
 
         return solvers;
     }

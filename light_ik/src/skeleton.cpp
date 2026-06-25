@@ -24,47 +24,48 @@ Skeleton::Skeleton(size_t bonesCount)
     m_bones.resize(bonesCount);
 }
 
-SolverBase& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, Target& target)
+SolverBase& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, size_t pivotIndex, Target& target)
 {
     // Root bone is not 0, so consider that all root chains are made from tip to root.
     assert(rootChain.size());
     
-    int chainIndex = m_chains.size();
+    int chainIndex          = m_chains.size();
     // Each solver controls specific IK chain
-    RootChain& newChain = *m_chains.emplace_back(std::make_unique<RootChain>(RootChain{BoneSubchain{}, std::ref(g_boneDummy)}));
+    RootChain& newChain     = *m_chains.emplace_back(std::make_unique<RootChain>(RootChain{BoneSubchain{}, std::ref(g_boneDummy)}));
     newChain.chain.reserve(rootChain.size());
 
     std::vector<BoneRef> solverChain;
     solverChain.reserve(rootChain.size());
 
     // Add bones in reverse order from tip to root
-    Bone* parentBone  = &g_boneDummy;
+    Bone* parentBone        = &g_boneDummy;
     
     // By default all bones after the start Bone Index forms the IK chain
-    bool inChain        = true;
+    bool inChain            = true;
+    size_t chainPivotIndex  = 0;
     
     for (size_t i = rootChain.size(); i != 0; --i)
     {
-        size_t index = i - 1;
-        auto boneCreation = AddBone(rootChain[index]);
+        size_t index            = i - 1;
+        auto boneCreation       = AddBone(rootChain[index]);
 
         // If the bone is the first bone not in the chain, then the parent bone is found
         if (!inChain && parentBone == &g_boneDummy)
         {
-            parentBone = &boneCreation.second.get();
+            parentBone          = &boneCreation.second.get();
         }
 
         // Verify that bone is still in chain and not a part of any existing chain
         //  if it is, and current bone is not a part of IK chain, then the local root bone found
         if (!inChain && !boneCreation.first)
         {
-            Bone& newBone = boneCreation.second;
+            Bone& newBone       = boneCreation.second;
             // Mark the owner of the bone that it has dependencies
             if (newBone.GetOwner())
             {
                 newBone.GetOwner()->SetDependencies(true);
             }
-            newChain.baseBone = std::ref(boneCreation.second);
+            newChain.baseBone   = std::ref(boneCreation.second);
             break;
         }
         // Add bone to the root chain
@@ -74,24 +75,34 @@ SolverBase& Skeleton::AddSolver(const std::vector<BoneDesc>& rootChain, size_t s
         {
             solverChain.emplace_back(boneCreation.second);
         }
+        
+        int boneIndex = rootChain[index].boneIndex;
+        // Check if custom pivot bone is set
+        if (boneIndex == pivotIndex && inChain)
+        {
+            chainPivotIndex     = index;
+        }
         // If bone index is equal to start bone index of the chain, it means that all previous bones
         //  are part of the root chain but not a part of IK calculations
-        if (rootChain[index].boneIndex == startBoneIndex)
+        if (boneIndex == startBoneIndex)
         {
             // Chain is finished
-            inChain = false;
+            inChain             = false;
         }
     }
     // reverse chain into stright direction
     std::reverse(newChain.chain.begin(), newChain.chain.end());
     std::reverse(solverChain.begin(), solverChain.end());
 
+    // Calculate Pivot Index
+    chainPivotIndex = chainPivotIndex;// < solverChain.size() ? chainPivotIndex : 0;
     // Calculate bone positions for all chain
-    auto tipPosition = CalculateBonePositions(newChain);
+    auto tipPosition            = CalculateBonePositions(newChain);
     // Add new solver
     assert(parentBone);
+    assert(chainPivotIndex < solverChain.size());
 
-    newChain.solver = std::make_unique<Solver>(std::move(solverChain), *parentBone, target);
+    newChain.solver             = std::make_unique<Solver>(std::move(solverChain), *parentBone, chainPivotIndex, target);
     newChain.solver->SetTipPosition(tipPosition);
     
     return *newChain.solver;
@@ -255,15 +266,21 @@ Vector Skeleton::CalculateBonePositions(RootChain& rootChain)
     //  or bone of the parent IK chain
     Quaternion rotation                 = rootChain.baseBone.get().GetGlobalOrientation();
     Vector position                     = rootChain.baseBone.get().GetPosition()+ (rotation * Helpers::DefaultAxis() * rootChain.baseBone.get().GetLength());
-
+    Vector axis                         = rootChain.baseBone.get().GetRotation() * Helpers::DefaultAxis();
     for (size_t i = 0; i < chain.size(); ++i)
     {
         chain[i].get().SetPosition(position);
         // Calculate cumuilative change of orientation of the current bone
+        Quaternion subRotation          = chain[i].get().GetRotation();
+        axis                            = subRotation * Helpers::DefaultAxis();
+        axis                            = rotation * axis;
+
         rotation                        = rotation * chain[i].get().GetRotation();
+        
         chain[i].get().SetGlobalOrientation(rotation);
         // Find the new position of the bone base joint
-        position                        = position + (rotation * Helpers::DefaultAxis() * chain[i].get().GetLength());
+        auto newAxis                    = rotation * Helpers::DefaultAxis();
+        position                        = position + (newAxis * chain[i].get().GetLength());
     }
     return position;
 }

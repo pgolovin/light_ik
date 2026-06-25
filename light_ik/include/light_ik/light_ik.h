@@ -30,7 +30,7 @@ public:
     /// @param chainStartIndex - index of the bone from which the actual IK chain is starting
     /// @param target - the target for current chain, it can be either position or another bone
     /// @return index of the created chain
-    size_t CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, Target& target);
+    size_t CreateIKChain(const std::vector<BoneDesc>& rootChainDesc, int chainStartIndex, int pivotIndex, Target& target);
 
     /// @brief Creates IK chain that uses skeleton bone as a target
     /// @param rootChainDesc - the chain, started from the skeleton root, till the tip of the current chain

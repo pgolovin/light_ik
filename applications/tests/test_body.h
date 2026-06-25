@@ -29,7 +29,7 @@ public:
         const std::vector<std::vector<int>>& branches, 
         const std::vector<int>& startIndices, 
         const std::vector<TargetRef>& targets);
-    SolverRef CreateSolver(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches, int startIndices, Target& target);
+    SolverRef CreateSolver(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches, int startIndices, int pivotIndex, Target& target);
     SolverBase* CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches);
     // Force chain completion: to calculate joint global positions
     void CompleteChain(SolverBase& solver);

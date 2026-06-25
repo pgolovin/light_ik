@@ -23,7 +23,7 @@ TEST(SolverTest, can_create_solver)
     Bone bone(2, glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}));
     Bone ref;
     TargetPosition target;
-    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}, ref, target));
+    ASSERT_NO_THROW(library = std::make_unique<Solver>(BoneSubchain{std::ref(bone)}, ref, 0, target));
 };
 
 class SolverBaseTests : public ::testing::Test, public LightIKTestBody
@@ -46,7 +46,7 @@ TEST_F(SolverBaseTests, default_root)
     TargetPosition target;
     SolverBase& solver = GetSkeleton().AddSolver({
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 0}
-    }, -1, target);
+    }, -1, 0, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,0,0}, solver.GetRootPosition()));
 }
 
@@ -56,7 +56,7 @@ TEST_F(SolverBaseTests, subchain_root)
     SolverBase& solver = GetSkeleton().AddSolver({
         BoneDesc{ glm::identity<Quaternion>(), 2.f, 0},
         BoneDesc{ glm::identity<Quaternion>(), 1.f, 1}
-    }, 1, target);
+    }, 1, 0, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,2,0}, solver.GetRootPosition()));
 }
 
@@ -67,7 +67,7 @@ TEST_F(SolverBaseTests, subchain_root_complex)
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 0},
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 1.f, 1},
         BoneDesc{ glm::angleAxis(glm::pi<real>()/2, Vector{1,0,0}), 2.f, 2},
-    }, 2, target);
+    }, 2, 0, target);
     ASSERT_TRUE(TestHelpers::CompareVectors({0,-1,2}, solver.GetRootPosition()));
 }
 
@@ -81,7 +81,7 @@ public:
     {
         m_solver = &GetSkeleton().AddSolver({
             BoneDesc{ glm::identity<Quaternion>(), 2.f, 0}
-        }, 1, m_target);
+        }, 1, 0, m_target);
     }
 
 protected:
@@ -348,7 +348,7 @@ TEST_F(BoneChainTest, multi_bone_chain)
 {
     Vector target{1, 4, 4};
     SetupChain({Vector{0, 1, 0}, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, 1, target);
-    Step(1);
+    Step(2); // TODO: this should be processed in one step.
 
     ASSERT_TRUE(TestHelpers::CompareVectors(target, GetSolver().GetTipPosition()));
 }

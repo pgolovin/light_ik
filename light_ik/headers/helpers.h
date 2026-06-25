@@ -49,4 +49,16 @@ struct ConstraintSolverYXZ final : public ConstraintSolver
     virtual Quaternion  FromTaitBriant(const Vector& a) override;
 };
 
+struct ConstraintSolverYZX final : public ConstraintSolver
+{
+    virtual Vector      ToTaitBriant(const Quaternion& q) override;
+    virtual Quaternion  FromTaitBriant(const Vector& a) override;
+};
+
+struct ConstraintSolverXYZ final : public ConstraintSolver
+{
+    virtual Vector      ToTaitBriant(const Quaternion& q) override;
+    virtual Quaternion  FromTaitBriant(const Vector& a) override;
+};
+
 }

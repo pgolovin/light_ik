@@ -15,6 +15,7 @@ struct SolverBase
     virtual void   SetTipPosition(Vector& position) = 0;
 
     // TODO: maybe remove
+    virtual size_t GetPivotIndex() const = 0;
     virtual Vector GetTipPosition() const = 0;
     virtual Vector GetRootPosition() const = 0;
     virtual const Vector& GetTargetPosition() const = 0;

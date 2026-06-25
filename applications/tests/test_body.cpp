@@ -75,7 +75,7 @@ SolverBase& LightIKTestBody::AddSolver(const std::vector<Vector>& chain, size_t 
     // add solver based on provided descriptions of the bones, 
     // IK chain is build on a part of the chain starting from startIndex (bone index)
     auto descriptors = ConstructDescriptors(chain);
-    return m_skeleton->AddSolver(descriptors, startIndex, target);
+    return m_skeleton->AddSolver(descriptors, startIndex, 0, target);
 }
 
 std::vector<SolverRef> LightIKTestBody::CreateSolvers(
@@ -87,19 +87,19 @@ std::vector<SolverRef> LightIKTestBody::CreateSolvers(
     std::vector<SolverRef> solvers;
     for (size_t c = 0; c < branches.size(); ++c)
     {
-        solvers.emplace_back(CreateSolver(skeleton, branches[c], startIndices[c], targets[c]));
+        solvers.emplace_back(CreateSolver(skeleton, branches[c], startIndices[c], 0, targets[c]));
     }    
     return solvers;
 }
 
-SolverRef LightIKTestBody::CreateSolver(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches, int startIndex, Target& target)
+SolverRef LightIKTestBody::CreateSolver(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches, int startIndex, int pivotIndex, Target& target)
 {
     std::vector<BoneDesc> subDescriptors;
      for (int i : branches)
     {
         subDescriptors.emplace_back(skeleton[i]);
     }
-    return std::ref(GetSkeleton().AddSolver(subDescriptors, startIndex, target));
+    return std::ref(GetSkeleton().AddSolver(subDescriptors, startIndex, pivotIndex, target));
 }
 
 SolverBase* LightIKTestBody::CreatePassiveChain(const std::vector<BoneDesc>& skeleton, const std::vector<int>& branches)

@@ -17,7 +17,7 @@ using Matrix4       = glm::mat<4, 4, real, glm::highp>;
 using Quaternion    = glm::qua<real, glm::highp>;
 
 static const real EPSILON   = 1e-14;
-static const real TOLERANCE = 1e-7;
+static const real TOLERANCE = 1e-3;
 
 constexpr bool EnableDebugLogging = true;
 
@@ -91,6 +91,7 @@ enum class ConstraintModes
     XZY,
     ZXY,
     YXZ,
+    YZX,
     Count
 };
 
@@ -111,6 +112,7 @@ struct Constraints
     ConstraintModes mode        {ConstraintModes::XZY};
     ConstraintRotation rotation {ConstraintRotation::CCW};
     
+    Vector restAngles           { 0,  0,  0};
 };
 
 }

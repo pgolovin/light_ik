@@ -17,22 +17,24 @@ class Solver final : public SolverBase
     const size_t m_defaultPose = 0;
     const Bone   m_defaultBone{};
 public:
-    Solver(BoneSubchain&& chain, const Bone& parentBone, Target& target);
+    Solver(BoneSubchain&& chain, const Bone& parentBone, size_t pivotIndexInChain, Target& target);
     virtual ~Solver() = default;
 
     const BoneSubchain& GetChain() const;
 
-    size_t GetChainSize() const                             { return m_chain.size();}
+    size_t GetChainSize() const                             { return m_chain.size();                }
+
+    size_t GetPivotIndex() const override                   { return m_pivotBoneIndex;              }
 
     void   SetTipPosition(Vector& position) override;
     Vector GetTipPosition() const;
 
-    const Vector& GetTargetPosition() const override        { return m_target.GetPosition(); }
+    const Vector& GetTargetPosition() const override        { return m_target.GetPosition();        }
 
     Vector GetRootPosition() const;
 
-    void   SetDependencies(bool hasDependencies) override   { m_hasDependencies = hasDependencies;}
-    bool   HasDependencies() const override                 { return m_hasDependencies;}
+    void   SetDependencies(bool hasDependencies) override   { m_hasDependencies = hasDependencies;  }
+    bool   HasDependencies() const override                 { return m_hasDependencies;             }
 
     bool   TargetReached() const override;
     void   Execute() override;
@@ -44,9 +46,9 @@ private:
         Quaternion cumulativeRotation;
         Quaternion rootRotation;
     };
+    ChainData               SolveSubchain(const Bone& parentBone, Bone& rootBone, size_t tail, size_t base);
     void                    LookAt(ChainData& chainData, const Vector& target);
-    void                    SolveBinaryJoint(ChainData& chainData, Bone& rootBone, Quaternion& rootPositionInv, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
-    
+    void                    SolveBinaryJoint(ChainData& chainData, Bone& rootBone, Bone& bone, const Bone& parent, const Vector& root, const Vector& tip, const Vector& target);
     struct JointAngles
     {
         real chord  = 0;
@@ -57,6 +59,7 @@ private:
     Quaternion              CalculateRootRotation(real angle, const ChainData& chainData, const Vector& z, const Bone& baseBone);
 
     const Bone&             m_parentBone;
+    size_t                  m_pivotBoneIndex = 0;
     BoneSubchain            m_chain;   // bones chain
     Vector                  m_tipPosition {0.f, 0.f, 0.f};
     Target&                 m_target;

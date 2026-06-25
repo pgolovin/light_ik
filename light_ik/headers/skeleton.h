@@ -20,11 +20,12 @@ public:
     Skeleton(size_t bonesCount);
 
     /// @brief Create solver for the bone chain.
-    /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone.
-    /// @param startBoneIndex Index of the bone from which the IK chain starts
+    /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone,
+    /// @param startBoneIndex Index of the bone from which the IK chain starts,
+    /// @param pivotIndex Index of the bone that will be used as a root bone for calculating rotation of child bones,
     /// @param target The target model for the chain, it can be either coordinates or bone inside the skeleton
     /// @return reference to the created IK solver
-    SolverBase& AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, Target& target);
+    SolverBase& AddSolver(const std::vector<BoneDesc>& rootChain, size_t startBoneIndex, size_t pivotIndex, Target& target);
 
     /// @brief Adds specific bone chain for monitoring, bones of the chain can be used as internal targets for other skeleton chains.
     /// @param rootChain The root chain is the list of bones from the current chain tip to the skeleton root bone.

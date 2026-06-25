@@ -9,6 +9,7 @@ set(LIGHT_IK_TEST_SRC
     "test_body.cpp"
     "skeleton_test.cpp"
     "bone_test.cpp"
+    "angle_solvers_test.cpp"
     "constraints_test.cpp"
     "coordination_test.cpp"
     "light_ik_test.cpp"

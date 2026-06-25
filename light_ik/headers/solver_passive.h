@@ -16,21 +16,22 @@ public:
     SolverPassive() = default;
     virtual ~SolverPassive() = default;
 
-    const BoneSubchain& GetChain() const                    { return m_chain; }
+    const BoneSubchain& GetChain() const                    { return m_chain;           }
 
-    size_t GetChainSize() const override                    { return 0; }
+    size_t GetChainSize() const override                    { return 0;                 }
 
-    void   SetTipPosition(Vector& position) override        { }
-    Vector GetTipPosition() const override                  { return Vector(0, 0, 0); }
-    const Vector& GetTargetPosition() const override        { return m_zero; }
+    size_t GetPivotIndex() const override                   { return 0;                 }
+    void   SetTipPosition(Vector& position) override        {                           }
+    Vector GetTipPosition() const override                  { return Vector(0, 0, 0);   }
+    const Vector& GetTargetPosition() const override        { return m_zero;            }
 
-    Vector GetRootPosition() const override                 { return Vector(0, 0, 0); }
+    Vector GetRootPosition() const override                 { return Vector(0, 0, 0);   }
 
-    void   SetDependencies(bool hasDependencies) override   { }
-    bool   HasDependencies() const override                 { return false;}
+    void   SetDependencies(bool hasDependencies) override   {                           }
+    bool   HasDependencies() const override                 { return false;             }
 
-    bool   TargetReached() const override                   { return true; }
-    void   Execute() override                               { }
+    bool   TargetReached() const override                   { return true;              }
+    void   Execute() override                               {                           }
     
 private:
     BoneSubchain            m_chain;
