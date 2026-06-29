@@ -25,40 +25,4 @@ public:
     static void                 Print(const std::string& prefix, const Matrix& value);
 };
 
-struct ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q)   = 0;
-    virtual Quaternion  FromTaitBriant(const Vector& a)     = 0;
-};
-
-struct ConstraintSolverXZY final : public ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q) override;
-    virtual Quaternion  FromTaitBriant(const Vector& a) override;
-};
-
-struct ConstraintSolverZXY final : public ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q) override;
-    virtual Quaternion  FromTaitBriant(const Vector& a) override;
-};
-
-struct ConstraintSolverYXZ final : public ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q) override;
-    virtual Quaternion  FromTaitBriant(const Vector& a) override;
-};
-
-struct ConstraintSolverYZX final : public ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q) override;
-    virtual Quaternion  FromTaitBriant(const Vector& a) override;
-};
-
-struct ConstraintSolverXYZ final : public ConstraintSolver
-{
-    virtual Vector      ToTaitBriant(const Quaternion& q) override;
-    virtual Quaternion  FromTaitBriant(const Vector& a) override;
-};
-
 }

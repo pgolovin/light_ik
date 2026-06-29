@@ -2,6 +2,7 @@
 set(HEADERS
     "headers/types.h"
     "headers/helpers.h"
+    "headers/constraint_solvers.h"
     "headers/bone.h"
     "headers/skeleton.h"
     "headers/target.h"
@@ -13,6 +14,7 @@ set(HEADERS
 set(SOURCES
     "src/light_ik.cpp"    
     "src/helpers.cpp"    
+    "src/constraint_solvers.cpp"
     "src/bone.cpp"
     "src/skeleton.cpp"
     "src/solver.cpp"

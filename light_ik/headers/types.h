@@ -88,10 +88,13 @@ enum class ConstraintType
 
 enum class ConstraintModes
 {
+    PassThrough,
+    SwingTwist,
     XZY,
     ZXY,
     YXZ,
     YZX,
+    XYZ,
     Count
 };
 
@@ -104,15 +107,15 @@ enum class ConstraintRotation
     
 struct Constraints
 {
+    ConstraintModes mode        {ConstraintModes::PassThrough};
+    ConstraintRotation rotation {ConstraintRotation::CCW};
+
     real flexibility            {1.};
     Vector minAngles            {-glm::pi<real>(), -glm::pi<real>(), -glm::pi<real>()};
     Vector maxAngles            { glm::pi<real>(),  glm::pi<real>(),  glm::pi<real>()};
-
-    ConstraintType  type        {ConstraintType::Local};
-    ConstraintModes mode        {ConstraintModes::XZY};
-    ConstraintRotation rotation {ConstraintRotation::CCW};
-    
     Vector restAngles           { 0,  0,  0};
+
+    
 };
 
 }

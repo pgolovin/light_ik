@@ -84,7 +84,7 @@ TEST_F(BoneFlexibilityTest, simple_stiff)
 {
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
-    Constraints constraints = { 0.5 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 0.5 };
     GetSkeleton().SetConstraint(1, std::move(constraints));
 
     Step(1);
@@ -96,7 +96,7 @@ TEST_F(BoneFlexibilityTest, simple_stiff_direction)
 {
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {0, 2, 0}}, 0, target);
-    Constraints constraints = { 0.5 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 0.5 };
     GetSkeleton().SetConstraint(1, std::move(constraints));
 
     Step(1);
@@ -108,7 +108,7 @@ TEST_F(BoneFlexibilityTest, simple_fixed)
 {
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
-    Constraints constraints = { 0 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 0 };
     GetSkeleton().SetConstraint(1, std::move(constraints));
 
     Step(1);
@@ -120,7 +120,7 @@ TEST_F(BoneFlexibilityTest, simple_fixed_direction)
 {
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 0, 0}}, 0, target);
-    Constraints constraints = { 0 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 0 };
     GetSkeleton().SetConstraint(1, std::move(constraints));
 
     Step(1);
@@ -132,7 +132,7 @@ TEST_F(BoneFlexibilityTest, fixed_preserve_angle)
 {
     Vector target{0, 1.5, 0};
     SetupChain({Vector{0, 1, 0}, {1, 1, 0}}, 0, target);
-    Constraints constraints = { 0 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 0 };
     GetSkeleton().SetConstraint(1, std::move(constraints));
 
     Step(1);
@@ -172,7 +172,7 @@ TEST_F(BoneLookAtConstraintsTest, no_rotation)
     
     Bone& bone = GetSolver().GetChain().front();
     // the joint is fullly flexible, but rotation limits blocks it from any rotation
-    Constraints constraints = { 1, Vector{0, 0, 0}, Vector{0, 0, 0} };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1, Vector{0, 0, 0}, Vector{0, 0, 0} };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     GetTarget().SetPosition(Vector{1,0,0});
     Step(1);
@@ -182,7 +182,7 @@ TEST_F(BoneLookAtConstraintsTest, no_rotation)
 
 TEST_F(BoneLookAtConstraintsTest, one_axis_allowed)
 {
-    Constraints constraints = { 1, Vector{-glm::pi<real>(), 0, 0}, Vector{glm::pi<real>(), 0, 0} };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1, Vector{-glm::pi<real>(), 0, 0}, Vector{glm::pi<real>(), 0, 0} };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {0, 0, 1};
     GetTarget().SetPosition(target);
@@ -193,7 +193,7 @@ TEST_F(BoneLookAtConstraintsTest, one_axis_allowed)
 
 TEST_F(BoneLookAtConstraintsTest, one_axis_blocked)
 {
-    Constraints constraints = { 1, Vector{-glm::pi<real>(), -glm::pi<real>(), 0}, Vector{glm::pi<real>(), glm::pi<real>(), 0} };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1, Vector{-glm::pi<real>(), -glm::pi<real>(), 0}, Vector{glm::pi<real>(), glm::pi<real>(), 0} };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 0};
     GetTarget().SetPosition(target);
@@ -205,7 +205,7 @@ TEST_F(BoneLookAtConstraintsTest, one_axis_blocked)
 
 TEST_F(BoneLookAtConstraintsTest, partially_blocked)
 {
-    Constraints constraints = { 1, Vector{-glm::pi<real>()/4, 0, 0}, Vector{glm::pi<real>()/4, 0, 0} };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1, Vector{-glm::pi<real>()/4, 0, 0}, Vector{glm::pi<real>()/4, 0, 0} };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {0, 0, 1};
     GetTarget().SetPosition(target);
@@ -216,11 +216,12 @@ TEST_F(BoneLookAtConstraintsTest, partially_blocked)
 
 TEST_F(BoneLookAtConstraintsTest, sector_allowed_xzy)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = { 
+        ConstraintModes::SwingTwist,
+        ConstraintRotation::CCW,
+        1, 
         Vector{-glm::quarter_pi<real>(), 0, -glm::quarter_pi<real>()}, 
         Vector{ glm::quarter_pi<real>(), 0,  glm::quarter_pi<real>()},
-        ConstraintType::Local,
-        ConstraintModes::XZY
     };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
@@ -234,11 +235,12 @@ TEST_F(BoneLookAtConstraintsTest, sector_allowed_xzy)
 
 TEST_F(BoneLookAtConstraintsTest, sector_allowed_zxy)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = { 
+        ConstraintModes::SwingTwist,
+        ConstraintRotation::CCW,
+        1, 
         Vector{-glm::quarter_pi<real>(), 0, -glm::quarter_pi<real>()}, 
         Vector{ glm::quarter_pi<real>(), 0,  glm::quarter_pi<real>()},
-        ConstraintType::Local,
-        ConstraintModes::ZXY
     };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
@@ -252,7 +254,7 @@ TEST_F(BoneLookAtConstraintsTest, sector_allowed_zxy)
 
 TEST_F(BoneLookAtConstraintsTest, rotation_ccw)
 {
-    Constraints constraints = { 1 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1 };
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
     GetTarget().SetPosition(target);
@@ -263,7 +265,7 @@ TEST_F(BoneLookAtConstraintsTest, rotation_ccw)
 
 TEST_F(BoneLookAtConstraintsTest, rotation_cw)
 {
-    Constraints constraints = { 1 };
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW, 1 };
     constraints.rotation = ConstraintRotation::CW;
     GetSkeleton().SetConstraint(0, std::move(constraints));
     Vector target {1, 0, 1};
@@ -285,7 +287,8 @@ public:
 
 TEST_F(BoneRotationConstraintsTest, locked_bone)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW,
+        1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
     GetSkeleton().SetConstraint(1, std::move(constraints));
@@ -298,7 +301,8 @@ TEST_F(BoneRotationConstraintsTest, locked_bone)
 
 TEST_F(BoneRotationConstraintsTest, locked_bone_chain)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW,
+        1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
     GetSkeleton().SetConstraint(1, std::move(constraints));
@@ -312,7 +316,8 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain)
 
 TEST_F(BoneRotationConstraintsTest, locked_bone_chain_direction)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW,
+        1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
     GetSkeleton().SetConstraint(1, std::move(constraints));
@@ -326,7 +331,8 @@ TEST_F(BoneRotationConstraintsTest, locked_bone_chain_direction)
 
 TEST_F(BoneRotationConstraintsTest, locked_bone_chain_target)
 {
-    Constraints constraints = { 1, 
+    Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW,
+        1, 
         Vector{0, 0, 0}, 
         Vector{0, 0, 0} };
     GetSkeleton().SetConstraint(1, std::move(constraints));
@@ -342,7 +348,8 @@ public:
     void SetUp() override
     {
         SetupChain({m_root, {0, 1, -2}, {0, 3, -2}, {0, 3, 0}, {0, 4, 0}, {0, 5, 0}}, 1, Vector{});
-        Constraints constraints = { 1, 
+        Constraints constraints = {ConstraintModes::XZY, ConstraintRotation::CCW,
+            1, 
             Vector{0, 0, 0}, 
             Vector{0, 0, 0} };
             
@@ -401,11 +408,10 @@ public:
         std::vector<int> rootStructure {0, 1, 2};
         m_solvers.emplace_back(CreateSolver(descriptors, rootStructure, 1, 0, m_target));
 
-        Constraints root  {1,   
+        Constraints root  {ConstraintModes::XZY, ConstraintRotation::CCW,
+            1,   
             {Helpers::Grad2Rad(-90.), 0, 0}, 
             {Helpers::Grad2Rad( 90.), 0, 0}, 
-            ConstraintType::Local,
-            ConstraintModes::XZY
         };
         
         GetSkeleton().SetConstraint(1, std::move(root));
@@ -466,10 +472,10 @@ public:
 
     void ApplyConstraints()
     {
-        Constraints knee  {1, {0, 0, -170/180.*glm::pi<real>()}, {0, 0, 0}, ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CW};
-        Constraints rotor {1, {0, -20/180.*glm::pi<real>(), 0}, {0, 20/180.*glm::pi<real>(), 0}, ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
-        Constraints foot  {1, {0, 0, 25/180.*glm::pi<real>()}, {0, 0, 90/180.*glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
-        Constraints thumb {1, {0, 0, -20/180.*glm::pi<real>()}, {0, 0, 20/180.*glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+        Constraints knee  {ConstraintModes::ZXY, ConstraintRotation::CW,  1, {0, 0, -170/180.*glm::pi<real>()}, {0, 0, 0}};
+        Constraints rotor {ConstraintModes::ZXY, ConstraintRotation::CCW, 1, {0, -20/180.*glm::pi<real>(), 0}, {0, 20/180.*glm::pi<real>(), 0}};
+        Constraints foot  {ConstraintModes::ZXY, ConstraintRotation::CCW, 1, {0, 0, 25/180.*glm::pi<real>()}, {0, 0, 90/180.*glm::pi<real>()}};
+        Constraints thumb {ConstraintModes::ZXY, ConstraintRotation::CCW, 1, {0, 0, -20/180.*glm::pi<real>()}, {0, 0, 20/180.*glm::pi<real>()}};
         GetSkeleton().SetConstraint(2, std::move(knee));
         GetSkeleton().SetConstraint(3, std::move(rotor));
         GetSkeleton().SetConstraint(4, std::move(foot));
@@ -549,9 +555,9 @@ public:
 
     void ApplyConstraints()
     {
-        Constraints root  {1, {glm::pi<real>()/2, 0, 0}, {glm::pi<real>(), 0, 0}, ConstraintType::Local, ConstraintModes::XZY, ConstraintRotation::CCW};
-        Constraints pivot {1, {glm::pi<real>()/2, 0, -glm::pi<real>()}, {glm::pi<real>()/2, 0, glm::pi<real>()}, ConstraintType::Local, ConstraintModes::YZX, ConstraintRotation::CW};
-        Constraints knee  {1, {0, 0, -glm::pi<real>()},  {0, 0, glm::pi<real>()},  ConstraintType::Local, ConstraintModes::ZXY, ConstraintRotation::CCW};
+        Constraints root  {ConstraintModes::XZY, ConstraintRotation::CCW, 1., {glm::pi<real>()/2, 0, 0}, {glm::pi<real>(), 0, 0}};
+        Constraints pivot {ConstraintModes::YZX, ConstraintRotation::CW,  1., {glm::pi<real>()/2, 0, -glm::pi<real>()}, {glm::pi<real>()/2, 0, glm::pi<real>()}};
+        Constraints knee  {ConstraintModes::ZXY, ConstraintRotation::CCW, 1., {0, 0, -glm::pi<real>()},  {0, 0, glm::pi<real>()}};
 
         GetSkeleton().SetConstraint(2, std::move(root));
         GetSkeleton().SetConstraint(3, std::move(pivot));

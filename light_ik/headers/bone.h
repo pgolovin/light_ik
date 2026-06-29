@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include "constraint_solvers.h"
 
 #include <vector>
 #include <string>
@@ -13,7 +14,6 @@ namespace LightIK
 {
 
 class SolverBase;
-struct ConstraintSolver;
 
 class Bone
 {
@@ -25,9 +25,10 @@ public:
     void SetGlobalOrientation(const Quaternion& orientation);
     const Quaternion& GetGlobalOrientation() const  { return m_globalOrientation;   }
 
-    // Local orientation of the bone in the sustem assotiated with the parent bone
-    void SetRotation(const Quaternion& rotation);
-    Quaternion CalculateConstraintRotation(const Quaternion& rotation) const;
+    // Local orientation of the bone in the system assotiated with the parent bone
+    // Apply constraints on local rotation, to update it and prevent the bone to overcome its limitations
+    Quaternion ApplyRotation(const Quaternion& rotation);
+    void ForceRotation(const Quaternion& rotation);
     const Quaternion& GetRotation() const           { return m_rotation;            }
 
     // Geometric data of the bone
@@ -38,9 +39,6 @@ public:
     void SetConstraints(Constraints && newConstraints);
     const Constraints& GetConstraints() const       { return m_constraints;         }
 
-    // Apply constraints on local rotation, to update it and prevent the bone to overcome its limitations
-    Quaternion ApplyConstraint(const Quaternion& inverseParent, const Quaternion& rotation) const;
-
     // Global position of the bone in the system associated with the root bone
     void SetPosition(const Vector& position)        { m_position = position;        }
     const Vector& GetPosition() const               { return m_position;            }
@@ -49,6 +47,8 @@ public:
     SolverBase* GetOwner() const                    { return m_owner;               }
 
     void Reset();   
+
+    ConstraintSolver& GetSolver() const             { return *m_solver;             }
 private:
     Quaternion  m_globalOrientation;
     Quaternion  m_rotation;
@@ -58,24 +58,13 @@ private:
 
     Constraints m_constraints;
 
-    real        m_minXLimit     = 1.;
-    real        m_maxXLimit     = 1.;
-    real        m_minZLimit     = 1.;
-    real        m_maxZLimit     = 1.;
-    real        m_minTwist      = -1.;
-    real        m_maxTwist      = 1.;
-    real        m_centerX       = 0;
-    real        m_centerZ       = 0;
-    bool        m_unlockedX     = true;
-    bool        m_unlockedZ     = true;
-
     // position of the bone joint
     Vector      m_position = Vector(0,0,0);
 
     // index of the bone, if index is negative the bone does not exists
     SolverBase* m_owner = nullptr;
 
-    std::reference_wrapper<ConstraintSolver> m_solver;
+    std::unique_ptr<ConstraintSolver> m_solver;
 };
 
 using BonePtr       = std::unique_ptr<Bone>;
